@@ -49,7 +49,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
         g2.drawString("Metal Slug Course Prototype", 28, 42);
         g2.setFont(new Font("Consolas", Font.PLAIN, 16));
         g2.drawString("Score: " + runtime.getScore(), 28, 68);
-        g2.drawString("CameraX: " + runtime.getCameraX(), 180, 68);
+        g2.drawString("CameraX: " + (int) Math.round(runtime.getCameraX()), 180, 68);
         g2.drawString("Controls: A/D move  W jump  S crouch  J fire  K knife", 28, 94);
 
         MsPlayer player = runtime.findPlayer();

@@ -65,6 +65,11 @@ public class ExplosionEffect extends ElementObj {
         return this;
     }
 
+    @Override
+    public void onCameraShift(double deltaX) {
+        setX(getX() + deltaX);
+    }
+
     private void ensureFrames() {
         if (frames != null) {
             return;

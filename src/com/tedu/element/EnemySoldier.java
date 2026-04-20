@@ -23,6 +23,7 @@ public class EnemySoldier extends ElementObj {
     private List<ImageIcon> attackRightFrames;
 
     private boolean facingRight;
+    private boolean patrolRight;
     private boolean onGround;
     private double velocityY;
     private double patrolStartX;
@@ -32,9 +33,7 @@ public class EnemySoldier extends ElementObj {
     private List<ImageIcon> activeFrames;
     private long lastAnimationTick;
     private long currentGameTime;
-    private long attackTickUntil = 0;
-    private long nextAttackTick = 0;
-    private boolean alert;
+    private boolean moving;
 
     @Override
     public void showElement(Graphics2D g2) {
@@ -54,29 +53,18 @@ public class EnemySoldier extends ElementObj {
 
     @Override
     protected void move() {
-        MsPlayer player = GameRuntime.getInstance().findPlayer();
-        double dx = 0;
-        alert = player != null && Math.abs(player.getX() - getX()) < 320 && Math.abs(player.getY() - getY()) < 120;
-        if (alert) {
-            if (Math.abs(player.getX() - getX()) > 8) {
-                facingRight = player.getX() > getX();
-            }
-            if (currentGameTime >= nextAttackTick) {
-                attackTickUntil = currentGameTime + 12;
-                nextAttackTick = currentGameTime + 32;
-            }
-        } else {
-            double minX = patrolStartX - patrolRange;
-            double maxX = patrolStartX + patrolRange;
-            dx = facingRight ? MOVE_SPEED : -MOVE_SPEED;
-            if (getX() <= minX) {
-                facingRight = true;
-                dx = MOVE_SPEED;
-            } else if (getX() >= maxX) {
-                facingRight = false;
-                dx = -MOVE_SPEED;
-            }
+        double minX = patrolStartX - patrolRange;
+        double maxX = patrolStartX + patrolRange;
+        double dx = patrolRight ? MOVE_SPEED : -MOVE_SPEED;
+        if (getX() <= minX) {
+            patrolRight = true;
+            dx = MOVE_SPEED;
+        } else if (getX() >= maxX) {
+            patrolRight = false;
+            dx = -MOVE_SPEED;
         }
+        facingRight = patrolRight;
+        moving = Math.abs(dx) > 0.01;
 
         setX(getX() + dx);
         velocityY += GRAVITY;
@@ -126,10 +114,7 @@ public class EnemySoldier extends ElementObj {
     }
 
     private List<ImageIcon> resolveFrames(long gameTime) {
-        if (gameTime < attackTickUntil) {
-            return facingRight ? attackRightFrames : attackLeftFrames;
-        }
-        if (alert) {
+        if (!moving) {
             return facingRight ? standRightFrames : standLeftFrames;
         }
         return facingRight ? runRightFrames : runLeftFrames;
@@ -141,8 +126,6 @@ public class EnemySoldier extends ElementObj {
         if (hp <= 0) {
             setLive(false);
             GameRuntime.getInstance().addScore(150);
-        } else {
-            attackTickUntil = currentGameTime + 8;
         }
     }
 
@@ -152,11 +135,18 @@ public class EnemySoldier extends ElementObj {
     }
 
     @Override
+    public void onCameraShift(double deltaX) {
+        setX(getX() + deltaX);
+        patrolStartX += deltaX;
+    }
+
+    @Override
     public ElementObj createElement(String str) {
         String[] data = str.split(",");
         setX(Integer.parseInt(data[0].trim()));
         setY(Integer.parseInt(data[1].trim()));
         facingRight = "right".equalsIgnoreCase(data[2].trim());
+        patrolRight = facingRight;
         patrolRange = Integer.parseInt(data[3].trim());
         patrolStartX = getX();
         ensureFrames();

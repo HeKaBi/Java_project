@@ -11,7 +11,7 @@ public class GameRuntime {
 
     private static final GameRuntime INSTANCE = new GameRuntime();
 
-    private int cameraX;
+    private double cameraX;
     private int stageWidth;
     private int stageHeight;
     private int score;
@@ -51,11 +51,11 @@ public class GameRuntime {
         return null;
     }
 
-    public int getCameraX() {
+    public double getCameraX() {
         return cameraX;
     }
 
-    public void setCameraX(int cameraX) {
+    public void setCameraX(double cameraX) {
         this.cameraX = cameraX;
     }
 

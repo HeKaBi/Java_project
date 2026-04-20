@@ -51,6 +51,9 @@ public abstract class ElementObj {
         this.live = false;
     }
 
+    public void onCameraShift(double deltaX) {
+    }
+
     public final void model(long gameTime) {
         updateImage(gameTime);
         move();

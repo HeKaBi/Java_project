@@ -136,8 +136,44 @@ public class GameThread extends Thread {
             runtime.setCameraX(0);
             return;
         }
-        int target = (int) player.getX() - GameRuntime.SCREEN_WIDTH / 2 + player.getW() / 2;
-        int maxCamera = Math.max(0, runtime.getStageWidth() - GameRuntime.SCREEN_WIDTH);
-        runtime.setCameraX(Math.max(0, Math.min(target, maxCamera)));
+
+        // Side-scrollers feel better with a dead-zone camera than with smoothing.
+        // Once the player reaches the follow band, the camera advances 1:1 with
+        // the player instead of "catching up", which keeps enemy screen motion stable.
+        final double leftDeadZone = 180;
+        final double rightDeadZone = 300;
+        double maxCamera = Math.max(0, runtime.getStageWidth() - GameRuntime.SCREEN_WIDTH);
+        double currentCamera = runtime.getCameraX();
+        double playerScreenX = player.getX() - currentCamera;
+        double targetCamera = currentCamera;
+
+        if (playerScreenX > rightDeadZone) {
+            targetCamera = player.getX() - rightDeadZone;
+        } else if (playerScreenX < leftDeadZone) {
+            targetCamera = player.getX() - leftDeadZone;
+        }
+        double nextCamera = Math.max(0, Math.min(targetCamera, maxCamera));
+        double deltaCamera = nextCamera - currentCamera;
+        runtime.setCameraX(nextCamera);
+        if (Math.abs(deltaCamera) > 0.0001) {
+            applyCameraShiftToDynamicElements(deltaCamera);
+        }
+    }
+
+    private void applyCameraShiftToDynamicElements(double deltaCamera) {
+        shiftGroup(GameElement.ENEMY, deltaCamera);
+        shiftGroup(GameElement.PLAY_BULLET, deltaCamera);
+        shiftGroup(GameElement.ENEMY_BULLET, deltaCamera);
+        shiftGroup(GameElement.EFFECT, deltaCamera);
+        shiftGroup(GameElement.ITEM, deltaCamera);
+        shiftGroup(GameElement.NPC, deltaCamera);
+        shiftGroup(GameElement.BOSS, deltaCamera);
+    }
+
+    private void shiftGroup(GameElement element, double deltaCamera) {
+        List<ElementObj> list = elementManager.getElementsByKey(element);
+        for (ElementObj obj : list) {
+            obj.onCameraShift(deltaCamera);
+        }
     }
 }

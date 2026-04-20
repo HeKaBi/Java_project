@@ -77,6 +77,11 @@ public class PlayerBullet extends ElementObj {
     }
 
     @Override
+    public void onCameraShift(double deltaX) {
+        setX(getX() + deltaX);
+    }
+
+    @Override
     public ElementObj createElement(String str) {
         String[] data = str.split(",");
         ensureFrames();
