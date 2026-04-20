@@ -10,6 +10,7 @@ import com.tedu.manager.GameElement;
 public abstract class ElementObj {
     private double x;
     private double y;
+    private double renderOffsetX;
     private int w;
     private int h;
     private ImageIcon icon;
@@ -52,6 +53,7 @@ public abstract class ElementObj {
     }
 
     public void onCameraShift(double deltaX) {
+        this.renderOffsetX += deltaX;
     }
 
     public final void model(long gameTime) {
@@ -114,5 +116,13 @@ public abstract class ElementObj {
 
     public void setLive(boolean live) {
         this.live = live;
+    }
+
+    public double getRenderOffsetX() {
+        return renderOffsetX;
+    }
+
+    public void setRenderOffsetX(double renderOffsetX) {
+        this.renderOffsetX = renderOffsetX;
     }
 }

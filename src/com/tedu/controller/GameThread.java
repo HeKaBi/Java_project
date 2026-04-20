@@ -140,8 +140,8 @@ public class GameThread extends Thread {
         // Side-scrollers feel better with a dead-zone camera than with smoothing.
         // Once the player reaches the follow band, the camera advances 1:1 with
         // the player instead of "catching up", which keeps enemy screen motion stable.
-        final double leftDeadZone = 180;
-        final double rightDeadZone = 300;
+        final double leftDeadZone = 220;
+        final double rightDeadZone = 900;
         double maxCamera = Math.max(0, runtime.getStageWidth() - GameRuntime.SCREEN_WIDTH);
         double currentCamera = runtime.getCameraX();
         double playerScreenX = player.getX() - currentCamera;

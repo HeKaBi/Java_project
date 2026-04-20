@@ -41,7 +41,7 @@ public class EnemySoldier extends ElementObj {
         if (current == null) {
             return;
         }
-        int screenX = (int) Math.round(getX() - GameRuntime.getInstance().getCameraX());
+        int screenX = (int) Math.round(getX() - GameRuntime.getInstance().getCameraX() + getRenderOffsetX());
         int screenBottomY = (int) Math.round(getY() + getH());
         int anchorX = screenX + getW() / 2;
         int drawW = (int) Math.round(current.getIconWidth() * 1.35);
@@ -136,8 +136,7 @@ public class EnemySoldier extends ElementObj {
 
     @Override
     public void onCameraShift(double deltaX) {
-        setX(getX() + deltaX);
-        patrolStartX += deltaX;
+        super.onCameraShift(deltaX);
     }
 
     @Override

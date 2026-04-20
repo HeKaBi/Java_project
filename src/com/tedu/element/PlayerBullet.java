@@ -37,7 +37,7 @@ public class PlayerBullet extends ElementObj {
         if (current == null) {
             return;
         }
-        int screenX = (int) Math.round(getX() - GameRuntime.getInstance().getCameraX());
+        int screenX = (int) Math.round(getX() - GameRuntime.getInstance().getCameraX() + getRenderOffsetX());
         if (direction < 0) {
             g2.drawImage(current.getImage(), screenX + getW(), (int) getY(), screenX, (int) getY() + getH(), 0, 0,
                     current.getIconWidth(), current.getIconHeight(), null);
@@ -78,7 +78,7 @@ public class PlayerBullet extends ElementObj {
 
     @Override
     public void onCameraShift(double deltaX) {
-        setX(getX() + deltaX);
+        super.onCameraShift(deltaX);
     }
 
     @Override

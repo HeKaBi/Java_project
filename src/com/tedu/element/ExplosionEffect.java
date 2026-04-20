@@ -32,7 +32,7 @@ public class ExplosionEffect extends ElementObj {
         if (current == null) {
             return;
         }
-        int screenX = (int) Math.round(getX() - GameRuntime.getInstance().getCameraX());
+        int screenX = (int) Math.round(getX() - GameRuntime.getInstance().getCameraX() + getRenderOffsetX());
         g2.drawImage(current.getImage(), screenX, (int) getY(), getW(), getH(), null);
     }
 
@@ -67,7 +67,7 @@ public class ExplosionEffect extends ElementObj {
 
     @Override
     public void onCameraShift(double deltaX) {
-        setX(getX() + deltaX);
+        super.onCameraShift(deltaX);
     }
 
     private void ensureFrames() {

@@ -11,12 +11,14 @@ public class SceneBlock extends ElementObj {
 
     @Override
     public void showElement(Graphics2D g2) {
-        if (!GameRuntime.getInstance().isDebugCollision()) {
-            return;
-        }
         int screenX = (int) Math.round(getX() - GameRuntime.getInstance().getCameraX());
-        g2.setColor(new Color(240, 186, 73, 120));
+        Color fill = "platform".equalsIgnoreCase(blockType)
+                ? new Color(255, 212, 96, 70)
+                : new Color(98, 211, 146, 48);
+        g2.setColor(fill);
         g2.fillRect(screenX, (int) getY(), getW(), getH());
+        g2.setColor(new Color(255, 255, 255, 70));
+        g2.drawRect(screenX, (int) getY(), getW(), getH());
     }
 
     @Override
