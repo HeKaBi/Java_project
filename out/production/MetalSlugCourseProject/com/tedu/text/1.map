@@ -1,0 +1,4 @@
+background=0,0,4200,720,bg_stage_1
+scene_block=0,610,3600,110,ground;560,470,220,26,platform;1180,520,260,26,platform;1880,440,240,26,platform;2500,560,280,26,platform
+player=120,500
+enemy_soldier=860,500,left,180;1480,430,left,160;2360,500,right,220
