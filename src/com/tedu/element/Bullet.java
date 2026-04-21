@@ -4,6 +4,7 @@ import com.tedu.manager.GameLoad;
 import com.tedu.manager.GameRuntime;
 import com.tedu.show.GameJFrame;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
 import java.awt.Rectangle;
 import javax.swing.ImageIcon;
 
@@ -17,6 +18,22 @@ public class Bullet extends ElementObj {
     @Override
     public void showElement(Graphics g) {
         if (this.getIcon() != null) {
+            if (isVerticalShot()) {
+                Graphics2D g2 = (Graphics2D) g.create();
+                int drawW = this.getIcon().getIconWidth();
+                int drawH = this.getIcon().getIconHeight();
+                int drawX = this.getX() - (drawW - this.getW()) / 2;
+                int drawY = this.getY() + (this.getH() - drawH) / 2;
+                double centerX = this.getX() + this.getW() / 2.0;
+                double centerY = this.getY() + this.getH() / 2.0;
+                g2.rotate(-Math.PI / 2, centerX, centerY);
+                g2.drawImage(this.getIcon().getImage(),
+                        drawX, drawY,
+                        drawW, drawH,
+                        null);
+                g2.dispose();
+                return;
+            }
             g.drawImage(this.getIcon().getImage(),
                     this.getX(), this.getY(),
                     this.getW(), this.getH(),
@@ -44,8 +61,6 @@ public class Bullet extends ElementObj {
         this.setY(Integer.parseInt(split[1]));
         ImageIcon icon = GameLoad.getImage(split[2]);
         this.setIcon(icon);
-        this.setW(icon == null ? 24 : icon.getIconWidth());
-        this.setH(icon == null ? 24 : icon.getIconHeight());
         if (split.length > 3) {
             this.vx = Integer.parseInt(split[3]);
         }
@@ -54,6 +69,15 @@ public class Bullet extends ElementObj {
         }
         if (split.length > 5) {
             this.damage = Integer.parseInt(split[5]);
+        }
+        int width = icon == null ? 24 : icon.getIconWidth();
+        int height = icon == null ? 24 : icon.getIconHeight();
+        if (isVerticalShot()) {
+            this.setW(height);
+            this.setH(width);
+        } else {
+            this.setW(width);
+            this.setH(height);
         }
         return this;
     }
@@ -75,5 +99,9 @@ public class Bullet extends ElementObj {
                     this.getH() + HORIZONTAL_LANE_PADDING_Y * 2);
         }
         return super.getRectangle();
+    }
+
+    private boolean isVerticalShot() {
+        return vx == 0 && vy != 0;
     }
 }

@@ -77,7 +77,7 @@ public class PaoPao extends ElementObj {
     private boolean weapon2Unlocked = false;
     private ImageIcon currentUpperFrame = lastFrame(UPPER_ATTACK_W1.select(true));
     private ImageIcon currentLowerFrame = firstFrame(LOWER_STAND.select(true));
-    private int hp = 3;
+    private int hp = 30;
     private int grenades = 8;
     private long hurtTime = -1000;
     private int speed = 5;
@@ -94,6 +94,7 @@ public class PaoPao extends ElementObj {
     private boolean right;
     private boolean faceRight = true;
     private boolean firing;
+    private boolean aimFiring;
     private boolean knifeQueued;
     private boolean grenadeQueued;
     private long fireTime = -100;
@@ -210,8 +211,9 @@ public class PaoPao extends ElementObj {
             case 87:
                 up = bl;
                 break;
-            case 69:
+            case 73:
                 aimUp = bl;
+                aimFiring = bl;
                 break;
             case 83:
                 down = bl;
@@ -229,7 +231,7 @@ public class PaoPao extends ElementObj {
             case 74:
                 firing = bl;
                 break;
-            case 32:
+            case 75:
                 if (bl && onGround) {
                     onGround = false;
                     vy = jumpVelocity;
@@ -282,7 +284,8 @@ public class PaoPao extends ElementObj {
                 spawnGrenade();
             }
         }
-        if (!firing || gameTime < knifeAnimUntil || gameTime - fireTime < currentWeapon.fireInterval) {
+        boolean shooting = firing || aimFiring;
+        if (!shooting || gameTime < knifeAnimUntil || gameTime - fireTime < currentWeapon.fireInterval) {
             return;
         }
         fireTime = gameTime;
@@ -307,16 +310,11 @@ public class PaoPao extends ElementObj {
             bulletY = muzzle.y - bulletH / 2;
             bulletVx = faceRight ? bulletSpeed : -bulletSpeed;
             bulletVy = 0;
-        } else if (aimUp && onGround) {
+        } else if (aimUp) {
             bulletX = muzzle.x - bulletW / 2;
             bulletY = muzzle.y - bulletH;
             bulletVx = 0;
             bulletVy = -bulletSpeed;
-        } else if (!onGround && aimUp) {
-            bulletX = faceRight ? muzzle.x : muzzle.x - bulletW;
-            bulletY = muzzle.y - bulletH / 2;
-            bulletVx = faceRight ? Math.max(8, bulletSpeed - 3) : -Math.max(8, bulletSpeed - 3);
-            bulletVy = -Math.max(6, bulletSpeed - 5);
         } else {
             bulletX = faceRight ? muzzle.x : muzzle.x - bulletW;
             bulletY = muzzle.y - bulletH / 2;
@@ -583,7 +581,7 @@ public class PaoPao extends ElementObj {
     }
 
     private Point resolveBulletOrigin() {
-        if (aimUp && onGround) {
+        if (aimUp) {
             ImageIcon upper = firstFrame(currentWeapon.aimUp.select(faceRight));
             ImageIcon lower = currentLowerFrame != null ? currentLowerFrame : firstFrame(LOWER_STAND.select(faceRight));
             SpritePose pose = buildPose(upper, lower, false, false);
