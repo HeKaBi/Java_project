@@ -20,7 +20,7 @@ import java.util.Random;
 
 public class GameThread extends Thread {
     private static final StageConfig[] STAGES = {
-            new StageConfig("STAGE 1", "image/images/背景/backimage.jpg",
+            new StageConfig("STAGE 1", "image/images/背景/backimage.png",
                     2600, 900, 2050,
                     75, 6, 35,
                     2, 3, 2, 3,
