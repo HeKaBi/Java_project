@@ -35,9 +35,17 @@ public class GameListener implements KeyListener{
 	 */
 	@Override
 	public void keyPressed(KeyEvent e) {
+		handleKeyPressed(e.getKeyCode());
+	}
+	/**松开*/
+	@Override
+	public void keyReleased(KeyEvent e) {
+		handleKeyReleased(e.getKeyCode());
+	}
+
+	public void handleKeyPressed(int key) {
 //		拿到玩家集合
-		System.out.println("按下"+e.getKeyCode());
-		int key=e.getKeyCode();
+		System.out.println("按下"+key);
 		if (key == KeyEvent.VK_R && GameRuntime.waitingRestart) {
 			GameRuntime.restartRequested = true;
 			return;
@@ -49,19 +57,18 @@ public class GameListener implements KeyListener{
 		set.add(key);
 		List<ElementObj> play = em.getElementsByKey(GameElement.PLAY);
 		for(ElementObj obj:play) {
-			obj.keyClick(true, e.getKeyCode());
+			obj.keyClick(true, key);
 		}
 	}
-	/**松开*/
-	@Override
-	public void keyReleased(KeyEvent e) {
-		if(!set.contains(e.getKeyCode())) {//如果这个不存在，就停止
+
+	public void handleKeyReleased(int key) {
+		if(!set.contains(key)) {//如果这个不存在，就停止
 			return;
 		}//存在(已经按过这个案件)
-		set.remove(e.getKeyCode());//移除数据
+		set.remove(key);//移除数据
 		List<ElementObj> play = em.getElementsByKey(GameElement.PLAY);
 		for(ElementObj obj:play) {
-			obj.keyClick(false, e.getKeyCode());
+			obj.keyClick(false, key);
 		}
 	}
 

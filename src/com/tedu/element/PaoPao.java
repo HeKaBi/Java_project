@@ -226,7 +226,7 @@ public class PaoPao extends ElementObj {
                     faceRight = true;
                 }
                 break;
-            case 70:
+            case 74:
                 firing = bl;
                 break;
             case 32:
