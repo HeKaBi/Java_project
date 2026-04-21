@@ -104,13 +104,6 @@ public class GameThread extends Thread {
         }
         ElementObj mapA = mapAObj.createElement("0,0," + stage.mapPath);
         em.addElement(mapA, GameElement.MAPS);
-
-        ElementObj mapBObj = GameLoad.getObj("map");
-        if (mapBObj == null) {
-            return;
-        }
-        int mapWidth = Math.max(GameJFrame.GameX, mapA.getW());
-        em.addElement(mapBObj.createElement(mapWidth + ",0," + stage.mapPath), GameElement.MAPS);
     }
 
     private void clearStageElements() {

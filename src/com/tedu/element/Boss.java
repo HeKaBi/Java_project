@@ -20,6 +20,7 @@ public class Boss extends ElementObj {
     private final ElementManager em = ElementManager.getManager();
 
     private int hp = 24;
+    private int maxHp = 24;
     private int patrolSpeed = 3;
     private boolean entered = false;
     private boolean patrolRight = false;
@@ -93,6 +94,7 @@ public class Boss extends ElementObj {
         this.setH(HITBOX_H);
         if (split.length > 2) {
             this.hp = Integer.parseInt(split[2]);
+            this.maxHp = this.hp;
         }
         if (!MOVE_FRAMES.isEmpty()) {
             currentFrame = MOVE_FRAMES.get(0);
@@ -127,6 +129,10 @@ public class Boss extends ElementObj {
 
     public int getHp() {
         return hp;
+    }
+
+    public int getMaxHp() {
+        return maxHp;
     }
 
     private void spawnBullet(int vy, int damage) {

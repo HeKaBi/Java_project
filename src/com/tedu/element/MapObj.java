@@ -8,6 +8,7 @@ import javax.swing.ImageIcon;
 
 public class MapObj extends ElementObj {
     private double scrollRatio = 1.0;
+    private int minX = 0;
 
     @Override
     public void showElement(Graphics g) {
@@ -25,10 +26,11 @@ public class MapObj extends ElementObj {
         if (shift <= 0) {
             return;
         }
-        this.setX(this.getX() - shift);
-        if (this.getX() <= -this.getW()) {
-            this.setX(this.getX() + this.getW() * 2);
+        int nextX = this.getX() - shift;
+        if (nextX < minX) {
+            nextX = minX;
         }
+        this.setX(nextX);
     }
 
     @Override
@@ -44,6 +46,7 @@ public class MapObj extends ElementObj {
         }
         this.setW(mapWidth);
         this.setH(GameJFrame.GameY);
+        this.minX = this.getX() - Math.max(0, mapWidth - GameJFrame.GameX);
         if (split.length > 3) {
             this.scrollRatio = Double.parseDouble(split[3]);
         }
