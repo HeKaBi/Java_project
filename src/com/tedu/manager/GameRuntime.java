@@ -3,6 +3,9 @@ package com.tedu.manager;
 import com.tedu.show.GameJFrame;
 
 public class GameRuntime {
+    public static volatile boolean waitingStart = true;
+    public static volatile boolean loadingStart = false;
+    public static volatile boolean startRequested = false;
     public static volatile boolean waitingRestart = false;
     public static volatile boolean restartRequested = false;
     public static volatile long startTimeMs = 0L;
@@ -24,10 +27,13 @@ public class GameRuntime {
     private GameRuntime() {
     }
 
-    public static void resetForNewGame() {
+    public static void prepareStartScreen() {
+        waitingStart = true;
+        loadingStart = false;
+        startRequested = false;
         waitingRestart = false;
         restartRequested = false;
-        startTimeMs = System.currentTimeMillis();
+        startTimeMs = 0L;
         survivalTimeMs = 0L;
         killCount = 0;
         worldScrollX = 0;
@@ -39,6 +45,41 @@ public class GameRuntime {
         finishTitle = "MISSION FAILED";
         bannerText = "";
         bannerUntilMs = 0L;
+    }
+
+    public static void resetForNewGame() {
+        startRequested = false;
+        waitingRestart = false;
+        restartRequested = false;
+        startTimeMs = 0L;
+        survivalTimeMs = 0L;
+        killCount = 0;
+        worldScrollX = 0;
+        stageDistance = 0;
+        stageLength = 5600;
+        currentStage = 0;
+        totalStages = 0;
+        missionClear = false;
+        finishTitle = "MISSION FAILED";
+        bannerText = "";
+        bannerUntilMs = 0L;
+    }
+
+    public static void beginStartTransition() {
+        waitingStart = true;
+        loadingStart = true;
+        startRequested = false;
+    }
+
+    public static void finishStartTransition() {
+        waitingStart = false;
+        loadingStart = false;
+        startRequested = false;
+    }
+
+    public static void markGameStartNow() {
+        startTimeMs = System.currentTimeMillis();
+        survivalTimeMs = 0L;
     }
 
     public static void beginStage(int stageNumber, int stageCount, int length) {

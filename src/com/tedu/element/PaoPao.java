@@ -217,7 +217,7 @@ public class PaoPao extends ElementObj {
             case 83:
                 down = bl;
                 break;
-            case 16:
+            case 17:
                 crouch = bl;
                 break;
             case 39:

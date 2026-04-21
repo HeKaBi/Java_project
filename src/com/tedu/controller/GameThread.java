@@ -47,6 +47,8 @@ public class GameThread extends Thread {
 
     @Override
     public void run() {
+        GameRuntime.prepareStartScreen();
+        waitForStartSignal();
         while (true) {
             gameLoad();
             gameRun();
@@ -57,6 +59,17 @@ public class GameThread extends Thread {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void waitForStartSignal() {
+        while (!GameRuntime.startRequested) {
+            try {
+                sleep(20);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        GameRuntime.beginStartTransition();
     }
 
     private void gameLoad() {
@@ -71,6 +84,8 @@ public class GameThread extends Thread {
         GameLoad.loadObj();
         loadStage(0, 0L, null);
         AudioPlayer.playBgmLoop("music/boss_lv.wav");
+        GameRuntime.markGameStartNow();
+        GameRuntime.finishStartTransition();
     }
 
     private void loadStage(int stageIndex, long gameTime, PaoPao existingPlayer) {
@@ -91,7 +106,7 @@ public class GameThread extends Thread {
         }
 
         if (stageIndex == 0) {
-            GameRuntime.showBanner(stage.title + "  |  A/D move  J fire  L knife  U grenade  1/2 weapon", 2600);
+            GameRuntime.showBanner(stage.title + "  |  A/D move  Space jump  Ctrl crouch", 2600);
         } else {
             GameRuntime.showBanner(stage.title, 1800);
         }
