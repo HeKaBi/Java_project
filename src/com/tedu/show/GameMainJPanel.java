@@ -1,124 +1,164 @@
 package com.tedu.show;
 
+import com.tedu.element.Boss;
 import com.tedu.element.ElementObj;
 import com.tedu.element.PaoPao;
 import com.tedu.manager.ElementManager;
 import com.tedu.manager.GameElement;
 import com.tedu.manager.GameRuntime;
 import java.awt.Color;
+import java.awt.Dimension;
 import java.awt.Font;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import javax.swing.JPanel;
 
-/**
- * @说明 游戏的主要面板
- * @author renjj
- * @功能说明 主要进行元素的显示，同时进行界面的刷新(多线程)
- * 
- * @题外话 java开发实现思考的应该是：做继承或者是接口实现
- * 
- * @多线程刷新 1.本类实现线程接口
- *             2.本类中定义一个内部类来实现
- */
-public class GameMainJPanel extends JPanel implements Runnable{
-//	联动管理器
-	private ElementManager em;
-	
-	public GameMainJPanel() {
-		init();
-	}
+public class GameMainJPanel extends JPanel implements Runnable {
+    private ElementManager em;
 
-	public void init() {
-		em = ElementManager.getManager();//得到元素管理器对象
-	}
-	/**
-	 * paint方法是进行绘画元素。
-	 * 绘画时是有固定的顺序，先绘画的图片会在底层，后绘画的图片会覆盖先绘画的
-	 * 约定：本方法只执行一次,想实时刷新需要使用 多线程
-	 */
-	@Override  //用于绘画的    Graphics 画笔 专门用于绘画的
-	protected void paintComponent(Graphics g) {
-		super.paintComponent(g);  //调用父类的paint方法
-//		map  key-value  key是无序不可重复的。
-//		set  和map的key一样 无序不可重复的
-		Map<GameElement, List<ElementObj>> all = em.getGameElements();
-//		GameElement.values();//隐藏方法  返回值是一个数组,数组的顺序就是定义枚举的顺序
-		for(GameElement ge:GameElement.values()) {
-			List<ElementObj> list = all.get(ge);
-			for(int i=0;i<list.size();i++) {
-				ElementObj obj=list.get(i);//读取为基类
-//				if(ge.equals(GameElement.PLAYFILE)) {
-//					System.out.println(":::::::::::"+obj);
-//				}
-				obj.showElement(g);//调用每个类的自己的show方法完成自己的显示
-			}
-		}
-		List<ElementObj> plays = all.get(GameElement.PLAY);
-		Graphics2D g2 = (Graphics2D) g.create();
-		g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-		g2.setColor(new Color(8, 18, 28, 170));
-		g2.fillRoundRect(12, 12, 240, 108, 16, 16);
-		g2.setColor(new Color(214, 232, 255));
-		g2.setFont(new Font("Dialog", Font.BOLD, 22));
-		if (plays != null && !plays.isEmpty() && plays.get(0) instanceof PaoPao) {
-			PaoPao play = (PaoPao) plays.get(0);
-			g2.drawString("HP: " + play.getHp(), 24, 42);
-		}
-		g2.setFont(new Font("Dialog", Font.BOLD, 20));
-		g2.drawString("KILL: " + GameRuntime.killCount, 24, 74);
-		g2.drawString("TIME: " + String.format("%.1f", GameRuntime.survivalTimeMs / 1000.0) + "s", 24, 102);
-		g2.dispose();
-		if (GameRuntime.waitingRestart) {
-			g.setColor(new Color(0, 0, 0, 170));
-			g.fillRect(0, 0, this.getWidth(), this.getHeight());
-			g.setColor(Color.WHITE);
-			g.setFont(new Font("Consolas", Font.BOLD, 42));
-			g.drawString("GAME OVER", 250, 220);
-			g.setFont(new Font("Consolas", Font.BOLD, 28));
-			g.drawString("Survival: " + (GameRuntime.survivalTimeMs / 1000.0) + "s", 250, 280);
-			g.drawString("Kills: " + GameRuntime.killCount, 250, 320);
-			g.drawString("Press R To Restart", 250, 380);
-		}
-		
-//		Set<GameElement> set = all.keySet(); //得到所有的key集合
-//		for(GameElement ge:set) { //迭代器
-//			List<ElementObj> list = all.get(ge);
-//			for(int i=0;i<list.size();i++) {
-//				ElementObj obj=list.get(i);//读取为基类
-//				obj.showElement(g);//调用每个类的自己的show方法完成自己的显示
-//			}
-//		}
-		
-	}
-	@Override
-	public void run() {  //接口实现
-		while(true) {
-//			System.out.println("多线程运动");
-			this.repaint();
-//			一般情况下，多线程都会使用一个休眠,控制速度
-			try {
-				Thread.sleep(10); //休眠10毫秒 1秒刷新20次
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}		
-		}
-	}
-	
-	
+    public GameMainJPanel() {
+        init();
+    }
+
+    public void init() {
+        em = ElementManager.getManager();
+        this.setPreferredSize(new Dimension(GameJFrame.GameX, GameJFrame.GameY));
+        this.setFocusable(true);
+        this.setDoubleBuffered(true);
+    }
+
+    @Override
+    protected void paintComponent(Graphics g) {
+        super.paintComponent(g);
+        Map<GameElement, List<ElementObj>> all = em.getGameElements();
+
+        drawMaps(g, all.get(GameElement.MAPS));
+        drawActors(g, all);
+        drawEffects(g, all);
+        drawHud((Graphics2D) g, all);
+        drawFinishOverlay(g);
+    }
+
+    private void drawMaps(Graphics g, List<ElementObj> maps) {
+        if (maps == null) {
+            return;
+        }
+        for (ElementObj map : maps) {
+            map.showElement(g);
+        }
+    }
+
+    private void drawActors(Graphics g, Map<GameElement, List<ElementObj>> all) {
+        List<ElementObj> actors = new ArrayList<>();
+        addAll(actors, all.get(GameElement.HOSTAGE));
+        addAll(actors, all.get(GameElement.PLAY));
+        addAll(actors, all.get(GameElement.ENEMY));
+        addAll(actors, all.get(GameElement.BOSS));
+        actors.sort(Comparator.comparingInt(ElementObj::getBottom));
+        for (ElementObj actor : actors) {
+            actor.showElement(g);
+        }
+    }
+
+    private void drawEffects(Graphics g, Map<GameElement, List<ElementObj>> all) {
+        for (GameElement ge : GameElement.values()) {
+            if (ge == GameElement.MAPS
+                    || ge == GameElement.PLAY
+                    || ge == GameElement.ENEMY
+                    || ge == GameElement.BOSS
+                    || ge == GameElement.HOSTAGE) {
+                continue;
+            }
+            List<ElementObj> list = all.get(ge);
+            if (list == null) {
+                continue;
+            }
+            for (ElementObj obj : list) {
+                obj.showElement(g);
+            }
+        }
+    }
+
+    private void drawHud(Graphics2D g2, Map<GameElement, List<ElementObj>> all) {
+        g2 = (Graphics2D) g2.create();
+        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+
+        g2.setColor(new Color(8, 18, 28, 180));
+        g2.fillRoundRect(12, 12, 320, 154, 18, 18);
+        g2.setColor(new Color(214, 232, 255));
+        g2.setFont(new Font("Dialog", Font.BOLD, 22));
+
+        List<ElementObj> plays = all.get(GameElement.PLAY);
+        if (plays != null && !plays.isEmpty() && plays.get(0) instanceof PaoPao) {
+            PaoPao play = (PaoPao) plays.get(0);
+            g2.drawString("HP: " + play.getHp(), 24, 42);
+            g2.drawString("Grenade: " + play.getGrenades(), 24, 70);
+            g2.setFont(new Font("Dialog", Font.BOLD, 18));
+            g2.drawString("Weapon: " + play.getWeaponName(), 24, 98);
+            g2.drawString("W2 Ready: " + (play.hasWeapon2() ? "YES" : "NO"), 24, 122);
+        }
+
+        g2.setFont(new Font("Dialog", Font.BOLD, 18));
+        g2.drawString("Kill: " + GameRuntime.killCount, 196, 42);
+        g2.drawString("Time: " + String.format("%.1f", GameRuntime.survivalTimeMs / 1000.0) + "s", 196, 70);
+        g2.drawString("Progress: " + GameRuntime.getStageProgressPercent() + "%", 196, 98);
+        g2.drawString("Stage: " + GameRuntime.currentStage + "/" + Math.max(1, GameRuntime.totalStages), 196, 126);
+
+        List<ElementObj> bosses = all.get(GameElement.BOSS);
+        if (bosses != null && !bosses.isEmpty() && bosses.get(0) instanceof Boss) {
+            Boss boss = (Boss) bosses.get(0);
+            g2.setColor(new Color(40, 10, 10, 180));
+            g2.fillRoundRect(348, 18, 320, 34, 16, 16);
+            g2.setColor(new Color(255, 220, 220));
+            g2.drawString("Boss HP: " + boss.getHp(), 362, 42);
+        }
+
+        if (System.currentTimeMillis() < GameRuntime.bannerUntilMs && GameRuntime.bannerText != null
+                && !GameRuntime.bannerText.isEmpty()) {
+            g2.setColor(new Color(0, 0, 0, 160));
+            g2.fillRoundRect(260, 72, 480, 44, 16, 16);
+            g2.setColor(new Color(255, 247, 189));
+            g2.setFont(new Font("Dialog", Font.BOLD, 24));
+            g2.drawString(GameRuntime.bannerText, 280, 102);
+        }
+        g2.dispose();
+    }
+
+    private void drawFinishOverlay(Graphics g) {
+        if (!GameRuntime.waitingRestart) {
+            return;
+        }
+        g.setColor(new Color(0, 0, 0, 170));
+        g.fillRect(0, 0, this.getWidth(), this.getHeight());
+        g.setColor(Color.WHITE);
+        g.setFont(new Font("Consolas", Font.BOLD, 42));
+        g.drawString(GameRuntime.finishTitle, 220, 220);
+        g.setFont(new Font("Consolas", Font.BOLD, 28));
+        g.drawString("Survival: " + String.format("%.1f", GameRuntime.survivalTimeMs / 1000.0) + "s", 220, 280);
+        g.drawString("Kills: " + GameRuntime.killCount, 220, 320);
+        g.drawString("Press R To Restart", 220, 380);
+    }
+
+    private void addAll(List<ElementObj> actors, List<ElementObj> objs) {
+        if (objs != null) {
+            actors.addAll(objs);
+        }
+    }
+
+    @Override
+    public void run() {
+        while (true) {
+            this.repaint();
+            try {
+                Thread.sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 }
-
-
-
-
-
-
-
-
-
-
-

@@ -1,25 +1,33 @@
 package com.tedu.element;
 
+import com.tedu.manager.GameLoad;
+import com.tedu.manager.GameRuntime;
 import com.tedu.show.GameJFrame;
 import java.awt.Graphics;
 import javax.swing.ImageIcon;
 
 public class MapObj extends ElementObj {
+    private double scrollRatio = 1.0;
+
     @Override
     public void showElement(Graphics g) {
         if (this.getIcon() != null) {
             g.drawImage(this.getIcon().getImage(),
                     this.getX(), this.getY(),
-                    this.getX() + this.getW(), this.getY() + this.getH(),
+                    this.getW(), this.getH(),
                     null);
         }
     }
 
     @Override
     protected void move() {
-        this.setX(this.getX() - 1);
+        int shift = (int) Math.round(GameRuntime.worldScrollX * scrollRatio);
+        if (shift <= 0) {
+            return;
+        }
+        this.setX(this.getX() - shift);
         if (this.getX() <= -this.getW()) {
-            this.setX(this.getW());
+            this.setX(this.getX() + this.getW() * 2);
         }
     }
 
@@ -28,7 +36,7 @@ public class MapObj extends ElementObj {
         String[] split = str.split(",");
         this.setX(Integer.parseInt(split[0]));
         this.setY(Integer.parseInt(split[1]));
-        ImageIcon icon = com.tedu.manager.GameLoad.imgMap.get(split[2]);
+        ImageIcon icon = GameLoad.getImage(split[2]);
         this.setIcon(icon);
         int mapWidth = GameJFrame.GameX;
         if (icon != null && icon.getIconWidth() > 0) {
@@ -36,6 +44,9 @@ public class MapObj extends ElementObj {
         }
         this.setW(mapWidth);
         this.setH(GameJFrame.GameY);
+        if (split.length > 3) {
+            this.scrollRatio = Double.parseDouble(split[3]);
+        }
         return this;
     }
 }

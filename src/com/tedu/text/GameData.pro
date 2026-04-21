@@ -1,5 +1,5 @@
-paopao=image/images/Enemy/R/enemy_stand100.png
-map=image/images/背景/backimage.jpg
+paopao=tmp_player_overlay.png
+map=image/images/\u80cc\u666f/backimage.jpg
 enemy=image/images/Enemy/R/enemy_run000.png
-bullet=image/images/子弹/bullet00.png
-ebullet=image/images/子弹/bullet10.png
+bullet=image/images/\u5b50\u5f39/right/bullet01.png
+ebullet=image/images/\u5b50\u5f39/left/bullet10.png

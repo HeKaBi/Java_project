@@ -1,7 +1,13 @@
 package com.tedu.controller;
 
+import com.tedu.element.Boss;
 import com.tedu.element.ElementObj;
+import com.tedu.element.Enemy;
+import com.tedu.element.Grenade;
+import com.tedu.element.Hostage;
 import com.tedu.element.PaoPao;
+import com.tedu.element.ScoutEnemy;
+import com.tedu.element.SupplyItem;
 import com.tedu.manager.AudioPlayer;
 import com.tedu.manager.ElementManager;
 import com.tedu.manager.GameElement;
@@ -12,213 +18,507 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-/**
- * @说明 游戏的主线程，用于控制游戏加载，游戏关卡，游戏运行时自动化
- * 		游戏判定；游戏地图切换 资源释放和重新读取。。。
- * @author renjj
- * @继承 使用继承的方式实现多线程(一般建议使用接口实现)
- */
-public class GameThread extends Thread{
-	private ElementManager em;
-	private final Random random = new Random();
-	private long enemyAddTime;
-	
-	public GameThread() {
-		em=ElementManager.getManager();
-	}
-	@Override
-	public void run() {//游戏的run方法  主线程
-		while(true) { //扩展,可以讲true变为一个变量用于控制结束
-//		游戏开始前   读进度条，加载游戏资源(场景资源)
-			gameLoad();
-//		游戏进行时   游戏过程中
-			gameRun();
-//		游戏场景结束  游戏资源回收(场景资源)
-			gameOver();
-			try {
-				sleep(50);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-	}
-	/**
-	 * 游戏的加载
-	 */
-	private void gameLoad() {
-		GameRuntime.resetForNewGame();
-		em.init();
-		GameLoad.loadImg(); //加载图片
-		GameLoad.loadObj();
-		loadMap();
-		GameLoad.loadPlay();//也可以带参数，单机还是2人
-		AudioPlayer.playBgmLoop("music/boss_lv.wav");
-		
-//		全部加载完成，游戏启动
-	}
+public class GameThread extends Thread {
+    private static final StageConfig[] STAGES = {
+            new StageConfig("STAGE 1", "image/images/背景/backimage.jpg",
+                    2600, 900, 2050,
+                    75, 6, 35,
+                    2, 3, 2, 3,
+                    4, 1, 24, "weapon2"),
+            new StageConfig("STAGE 2", "image/images/背景/backimage1.gif",
+                    3600, 1200, 3050,
+                    55, 8, 55,
+                    3, 4, 3, 4,
+                    5, 2, 36, "grenade")
+    };
 
-	private void loadMap() {
-		ElementObj mapAObj = GameLoad.getObj("map");
-		if (mapAObj == null) {
-			return;
-		}
-		ElementObj mapA = mapAObj.createElement("0,0,map");
-		em.addElement(mapA, GameElement.MAPS);
+    private final ElementManager em;
+    private final Random random = new Random();
 
-		ElementObj mapBObj = GameLoad.getObj("map");
-		if (mapBObj == null) {
-			return;
-		}
-		int mapWidth = Math.max(GameJFrame.GameX, mapA.getW());
-		em.addElement(mapBObj.createElement(mapWidth + ",0,map"), GameElement.MAPS);
-	}
-	/**
-	 * @说明  游戏进行时
-	 * @任务说明  游戏过程中需要做的事情：1.自动化玩家的移动，碰撞，死亡
-	 *                                 2.新元素的增加(NPC死亡后出现道具)
-	 *                                 3.暂停等等。。。。。
-	 * 先实现主角的移动
-	 * */
-	
-	private void gameRun() {
-		long gameTime=0L;//给int类型就可以啦
-		while(true) {// 预留扩展   true可以变为变量，用于控制管关卡结束等
-			Map<GameElement, List<ElementObj>> all = em.getGameElements();
-			List<ElementObj> enemys = em.getElementsByKey(GameElement.ENEMY);
-			List<ElementObj> playFiles = em.getElementsByKey(GameElement.PLAYFILE);
-			List<ElementObj> enemyFiles = em.getElementsByKey(GameElement.ENEMYFILE);
-			List<ElementObj> plays = em.getElementsByKey(GameElement.PLAY);
-			spawnEnemy(gameTime);
-			moveAndUpdate(all,gameTime);//	游戏元素自动化方法
-			
-			ElementPK(enemys,playFiles);
-			ElementPK(enemyFiles,plays);
-			EnemyHitPlay(enemys,plays,gameTime);
-			GameRuntime.survivalTimeMs = System.currentTimeMillis() - GameRuntime.startTimeMs;
-			if (plays.isEmpty()) {
-				GameRuntime.waitingRestart = true;
-				break;
-			}
-			
-			gameTime++;//唯一的时间控制
-			try {
-				sleep(10);//默认理解为 1秒刷新100次 
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-	}
+    private long enemyAddTime;
+    private boolean hostageSpawned;
+    private boolean bossSpawned;
+    private boolean missionResolved;
+    private int currentStageIndex;
 
-	private void spawnEnemy(long gameTime) {
-		if (gameTime - enemyAddTime < 80) {
-			return;
-		}
-		enemyAddTime = gameTime;
-		ElementObj enemyObj = GameLoad.getObj("enemy");
-		if (enemyObj == null) {
-			return;
-		}
-		ElementObj enemy = enemyObj.createElement((GameJFrame.GameX + 20) + ",0,enemy,2");
-		int maxY = Math.max(0, GameJFrame.GameY - enemy.getH() - 20);
-		int minY = Math.min(maxY, Math.max(100, maxY - 220));
-		int y = minY;
-		if (maxY > minY) {
-			y = minY + random.nextInt(maxY - minY + 1);
-		}
-		enemy.setY(y);
-		em.addElement(enemy, GameElement.ENEMY);
-	}
-	public void ElementPK(List<ElementObj> listA,List<ElementObj>listB) {
-//		请大家在这里使用循环，做一对一判定，如果为真，就设置2个对象的死亡状态
-		for(int i=0;i<listA.size();i++) {
-			ElementObj a=listA.get(i);
-			for(int j=0;j<listB.size();j++) {
-				ElementObj b=listB.get(j);
-				if(a.pk(b)) {
-//					问题： 如果是boos，那么也一枪一个吗？？？？
-//					将 setLive(false) 变为一个受攻击方法，还可以传入另外一个对象的攻击力
-//					当收攻击方法里执行时，如果血量减为0 再进行设置生存为 false
-//					扩展 留给大家
-					AudioPlayer.playOnce("music/die.wav");
-					a.setLive(false);
-					b.setLive(false);
-					if (listA == em.getElementsByKey(GameElement.ENEMY) && listB == em.getElementsByKey(GameElement.PLAYFILE)) {
-						GameRuntime.killCount++;
-					}
-					break;
-				}
-			}
-		}
-	}
+    public GameThread() {
+        em = ElementManager.getManager();
+    }
 
-	public void EnemyHitPlay(List<ElementObj> enemys, List<ElementObj> plays, long gameTime) {
-		for (int i = 0; i < enemys.size(); i++) {
-			ElementObj enemy = enemys.get(i);
-			for (int j = 0; j < plays.size(); j++) {
-				ElementObj playObj = plays.get(j);
-				if (!enemy.pk(playObj)) {
-					continue;
-				}
-				if (playObj instanceof PaoPao) {
-					PaoPao play = (PaoPao) playObj;
-					long oldHurtTime = play.getHurtTime();
-					play.hurt(gameTime, 1);
-					if (play.getHurtTime() != oldHurtTime) {
-						AudioPlayer.playOnce("music/die.wav");
-					}
-				} else {
-					playObj.setLive(false);
-				}
-				enemy.setLive(false);
-				break;
-			}
-		}
-	}
-	
-	
-	
-	
-//	游戏元素自动化方法
-	public void moveAndUpdate(Map<GameElement, List<ElementObj>> all,long gameTime) {
-//		GameElement.values();//隐藏方法  返回值是一个数组,数组的顺序就是定义枚举的顺序
-		for(GameElement ge:GameElement.values()) {
-			List<ElementObj> list = all.get(ge);
-//			编写这样直接操作集合数据的代码建议不要使用迭代器。
-//			for(int i=0;i<list.size();i++) {
-			for(int i=list.size()-1;i>=0;i--){	
-				ElementObj obj=list.get(i);//读取为基类
-				if(!obj.isLive()) {//如果死亡
-//					list.remove(i--);  //可以使用这样的方式
-//					启动一个死亡方法(方法中可以做事情例如:死亡动画 ,掉装备)
-					obj.die();//需要大家自己补充
-					list.remove(i);
-					continue;
-				}
-				obj.model(gameTime);//调用的模板方法 不是move
-			}
-		}	
-	}
-	
+    @Override
+    public void run() {
+        while (true) {
+            gameLoad();
+            gameRun();
+            gameOver();
+            try {
+                sleep(50);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
 
-	
-	/**游戏切换关卡*/
-	private void gameOver() {
-		AudioPlayer.stopBgm();
-		while (!GameRuntime.restartRequested) {
-			try {
-				sleep(20);
-			} catch (InterruptedException e) {
-				e.printStackTrace();
-			}
-		}
-		GameRuntime.waitingRestart = false;
-	}
-	
+    private void gameLoad() {
+        GameRuntime.resetForNewGame();
+        em.init();
+        enemyAddTime = 0L;
+        hostageSpawned = false;
+        bossSpawned = false;
+        missionResolved = false;
+        currentStageIndex = 0;
+        GameLoad.loadImg();
+        GameLoad.loadObj();
+        loadStage(0, 0L, null);
+        AudioPlayer.playBgmLoop("music/boss_lv.wav");
+    }
+
+    private void loadStage(int stageIndex, long gameTime, PaoPao existingPlayer) {
+        currentStageIndex = stageIndex;
+        StageConfig stage = getCurrentStage();
+        clearStageElements();
+        resetStageState(gameTime);
+        GameRuntime.beginStage(stageIndex + 1, STAGES.length, stage.stageLength);
+        loadMap(stage);
+
+        PaoPao player = existingPlayer;
+        if (player == null) {
+            GameLoad.loadPlay();
+            player = getPlayer();
+        }
+        if (player != null) {
+            player.placeAtStageStart();
+        }
+
+        if (stageIndex == 0) {
+            GameRuntime.showBanner(stage.title + "  |  A/D move  F fire  L knife  U grenade  1/2 weapon", 2600);
+        } else {
+            GameRuntime.showBanner(stage.title, 1800);
+        }
+    }
+
+    private void loadMap(StageConfig stage) {
+        ElementObj mapAObj = GameLoad.getObj("map");
+        if (mapAObj == null) {
+            return;
+        }
+        ElementObj mapA = mapAObj.createElement("0,0," + stage.mapPath);
+        em.addElement(mapA, GameElement.MAPS);
+
+        ElementObj mapBObj = GameLoad.getObj("map");
+        if (mapBObj == null) {
+            return;
+        }
+        int mapWidth = Math.max(GameJFrame.GameX, mapA.getW());
+        em.addElement(mapBObj.createElement(mapWidth + ",0," + stage.mapPath), GameElement.MAPS);
+    }
+
+    private void clearStageElements() {
+        em.getElementsByKey(GameElement.MAPS).clear();
+        em.getElementsByKey(GameElement.ENEMY).clear();
+        em.getElementsByKey(GameElement.BOSS).clear();
+        em.getElementsByKey(GameElement.HOSTAGE).clear();
+        em.getElementsByKey(GameElement.ITEM).clear();
+        em.getElementsByKey(GameElement.PLAYFILE).clear();
+        em.getElementsByKey(GameElement.ENEMYFILE).clear();
+        em.getElementsByKey(GameElement.DIE).clear();
+    }
+
+    private void resetStageState(long gameTime) {
+        enemyAddTime = gameTime;
+        hostageSpawned = false;
+        bossSpawned = false;
+        missionResolved = false;
+        GameRuntime.worldScrollX = 0;
+    }
+
+    private StageConfig getCurrentStage() {
+        return STAGES[currentStageIndex];
+    }
+
+    private boolean hasNextStage() {
+        return currentStageIndex + 1 < STAGES.length;
+    }
+
+    private PaoPao getPlayer() {
+        List<ElementObj> plays = em.getElementsByKey(GameElement.PLAY);
+        if (plays.isEmpty() || !(plays.get(0) instanceof PaoPao)) {
+            return null;
+        }
+        return (PaoPao) plays.get(0);
+    }
+
+    private void gameRun() {
+        long gameTime = 0L;
+        while (true) {
+            Map<GameElement, List<ElementObj>> all = em.getGameElements();
+            List<ElementObj> plays = em.getElementsByKey(GameElement.PLAY);
+            List<ElementObj> enemys = em.getElementsByKey(GameElement.ENEMY);
+            List<ElementObj> bosses = em.getElementsByKey(GameElement.BOSS);
+            List<ElementObj> hostages = em.getElementsByKey(GameElement.HOSTAGE);
+            List<ElementObj> items = em.getElementsByKey(GameElement.ITEM);
+            List<ElementObj> playFiles = em.getElementsByKey(GameElement.PLAYFILE);
+            List<ElementObj> enemyFiles = em.getElementsByKey(GameElement.ENEMYFILE);
+
+            spawnSceneObjects(gameTime, enemys, bosses, hostages);
+            GameRuntime.worldScrollX = resolveWorldScroll(plays, bosses);
+            moveAndUpdate(all, gameTime);
+
+            handlePlayerProjectilesHitEnemies(playFiles, enemys);
+            handlePlayerProjectilesHitBoss(playFiles, bosses);
+            handleEnemyProjectilesHitPlayer(enemyFiles, plays, gameTime);
+            handleEnemyContact(enemys, plays, gameTime);
+            handleBossContact(bosses, plays, gameTime);
+            handleHostageRescue(plays, hostages);
+            handleItemPickup(plays, items);
+
+            GameRuntime.survivalTimeMs = System.currentTimeMillis() - GameRuntime.startTimeMs;
+            if (plays.isEmpty()) {
+                GameRuntime.finishTitle = "MISSION FAILED";
+                GameRuntime.waitingRestart = true;
+                break;
+            }
+            if (bossSpawned && !missionResolved && bosses.isEmpty()) {
+                missionResolved = true;
+                if (hasNextStage()) {
+                    loadStage(currentStageIndex + 1, gameTime, getPlayer());
+                } else {
+                    GameRuntime.missionClear = true;
+                    GameRuntime.finishTitle = "MISSION COMPLETE";
+                    GameRuntime.showBanner("Final boss defeated", 1800);
+                    GameRuntime.waitingRestart = true;
+                    break;
+                }
+            }
+
+            gameTime++;
+            try {
+                sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private int resolveWorldScroll(List<ElementObj> plays, List<ElementObj> bosses) {
+        if (plays == null || plays.isEmpty() || bossSpawned || (bosses != null && !bosses.isEmpty())) {
+            return 0;
+        }
+        ElementObj playObj = plays.get(0);
+        if (!(playObj instanceof PaoPao)) {
+            return 0;
+        }
+        int remainingDistance = Math.max(0, GameRuntime.stageLength - GameRuntime.stageDistance);
+        int scroll = ((PaoPao) playObj).prepareWorldScroll(remainingDistance);
+        GameRuntime.stageDistance += scroll;
+        return scroll;
+    }
+
+    private void spawnSceneObjects(long gameTime, List<ElementObj> enemys, List<ElementObj> bosses, List<ElementObj> hostages) {
+        StageConfig stage = getCurrentStage();
+        if (!hostageSpawned && GameRuntime.stageDistance >= stage.hostageSpawnDistance) {
+            hostageSpawned = true;
+            ElementObj hostage = new Hostage().createElement((GameJFrame.GameX + 160) + ",0," + stage.hostageRewardType);
+            hostage.setY(GameRuntime.getBattlefieldMaxBottom() - hostage.getH());
+            em.addElement(hostage, GameElement.HOSTAGE);
+            GameRuntime.showBanner("Found a hostage", 1400);
+        }
+        if (!bossSpawned && GameRuntime.stageDistance >= stage.bossSpawnDistance) {
+            bossSpawned = true;
+            GameRuntime.stageDistance = GameRuntime.stageLength;
+            ElementObj boss = new Boss().createElement((GameJFrame.GameX + 220) + ",0," + stage.bossHp);
+            boss.setY(GameRuntime.getBattlefieldMaxBottom() - boss.getH());
+            em.addElement(boss, GameElement.BOSS);
+            GameRuntime.showBanner("Boss incoming", 1800);
+            return;
+        }
+        if (bossSpawned || (bosses != null && !bosses.isEmpty())) {
+            return;
+        }
+        spawnEnemy(gameTime, enemys, stage);
+    }
+
+    private void spawnEnemy(long gameTime, List<ElementObj> enemys, StageConfig stage) {
+        if (gameTime - enemyAddTime < stage.enemyInterval) {
+            return;
+        }
+        if (enemys.size() >= stage.maxEnemies) {
+            return;
+        }
+        enemyAddTime = gameTime;
+        int bottom = randomBattlefieldBottom();
+        if (random.nextInt(100) < stage.scoutChance) {
+            ElementObj scout = new ScoutEnemy().createElement(
+                    (GameJFrame.GameX + 20) + "," + (bottom - 72) + "," + stage.scoutSpeed + "," + stage.scoutHp);
+            scout.setY(bottom - scout.getH());
+            em.addElement(scout, GameElement.ENEMY);
+            return;
+        }
+        ElementObj enemyObj = GameLoad.getObj("enemy");
+        if (enemyObj == null) {
+            return;
+        }
+        int speed = randomBetween(stage.enemySpeedMin, stage.enemySpeedMax);
+        int hp = randomBetween(stage.enemyHpMin, stage.enemyHpMax);
+        ElementObj enemy = enemyObj.createElement(
+                (GameJFrame.GameX + 20) + "," + (bottom - 72) + ",enemy," + speed + "," + hp);
+        enemy.setY(bottom - enemy.getH());
+        em.addElement(enemy, GameElement.ENEMY);
+    }
+
+    private int randomBetween(int min, int max) {
+        if (max <= min) {
+            return min;
+        }
+        return min + random.nextInt(max - min + 1);
+    }
+
+    private int randomBattlefieldBottom() {
+        int minBottom = GameRuntime.getBattlefieldMinBottom();
+        int maxBottom = GameRuntime.getBattlefieldMaxBottom();
+        if (maxBottom <= minBottom) {
+            return minBottom;
+        }
+        return minBottom + random.nextInt(maxBottom - minBottom + 1);
+    }
+
+    private void handlePlayerProjectilesHitEnemies(List<ElementObj> playFiles, List<ElementObj> enemys) {
+        for (int i = playFiles.size() - 1; i >= 0; i--) {
+            ElementObj projectile = playFiles.get(i);
+            if (!projectile.isLive()) {
+                continue;
+            }
+            for (int j = enemys.size() - 1; j >= 0; j--) {
+                ElementObj enemy = enemys.get(j);
+                if (!enemy.isLive() || !enemy.pk(projectile)) {
+                    continue;
+                }
+                int damage = Math.max(1, projectile.getDamage());
+                if (enemy instanceof Enemy) {
+                    ((Enemy) enemy).hurt(damage);
+                } else if (enemy instanceof ScoutEnemy) {
+                    ((ScoutEnemy) enemy).hurt(damage);
+                } else {
+                    enemy.setLive(false);
+                }
+                consumePlayerProjectile(projectile);
+                break;
+            }
+        }
+    }
+
+    private void handlePlayerProjectilesHitBoss(List<ElementObj> playFiles, List<ElementObj> bosses) {
+        for (int i = playFiles.size() - 1; i >= 0; i--) {
+            ElementObj projectile = playFiles.get(i);
+            if (!projectile.isLive()) {
+                continue;
+            }
+            for (int j = bosses.size() - 1; j >= 0; j--) {
+                ElementObj boss = bosses.get(j);
+                if (!boss.isLive() || !boss.pk(projectile)) {
+                    continue;
+                }
+                int damage = Math.max(1, projectile.getDamage());
+                if (boss instanceof Boss) {
+                    ((Boss) boss).hurt(damage);
+                } else {
+                    boss.setLive(false);
+                }
+                consumePlayerProjectile(projectile);
+                break;
+            }
+        }
+    }
+
+    private void consumePlayerProjectile(ElementObj projectile) {
+        if (projectile instanceof Grenade) {
+            ((Grenade) projectile).explode();
+        } else {
+            projectile.setLive(false);
+        }
+    }
+
+    private void handleEnemyProjectilesHitPlayer(List<ElementObj> enemyFiles, List<ElementObj> plays, long gameTime) {
+        for (int i = enemyFiles.size() - 1; i >= 0; i--) {
+            ElementObj projectile = enemyFiles.get(i);
+            if (!projectile.isLive()) {
+                continue;
+            }
+            for (int j = plays.size() - 1; j >= 0; j--) {
+                ElementObj playObj = plays.get(j);
+                if (!playObj.isLive() || !projectile.pk(playObj)) {
+                    continue;
+                }
+                if (playObj instanceof PaoPao) {
+                    PaoPao play = (PaoPao) playObj;
+                    long oldHurtTime = play.getHurtTime();
+                    play.hurt(gameTime, Math.max(1, projectile.getDamage()));
+                    if (play.getHurtTime() != oldHurtTime) {
+                        AudioPlayer.playOnce("music/die.wav");
+                    }
+                } else {
+                    playObj.setLive(false);
+                }
+                projectile.setLive(false);
+                break;
+            }
+        }
+    }
+
+    private void handleEnemyContact(List<ElementObj> enemys, List<ElementObj> plays, long gameTime) {
+        for (int i = enemys.size() - 1; i >= 0; i--) {
+            ElementObj enemy = enemys.get(i);
+            for (int j = plays.size() - 1; j >= 0; j--) {
+                ElementObj playObj = plays.get(j);
+                if (!enemy.isLive() || !playObj.isLive() || !enemy.pk(playObj)) {
+                    continue;
+                }
+                if (playObj instanceof PaoPao) {
+                    PaoPao play = (PaoPao) playObj;
+                    long oldHurtTime = play.getHurtTime();
+                    play.hurt(gameTime, 1);
+                    if (play.getHurtTime() != oldHurtTime) {
+                        AudioPlayer.playOnce("music/die.wav");
+                    }
+                } else {
+                    playObj.setLive(false);
+                }
+                enemy.setLive(false);
+                break;
+            }
+        }
+    }
+
+    private void handleBossContact(List<ElementObj> bosses, List<ElementObj> plays, long gameTime) {
+        for (int i = bosses.size() - 1; i >= 0; i--) {
+            ElementObj boss = bosses.get(i);
+            for (int j = plays.size() - 1; j >= 0; j--) {
+                ElementObj playObj = plays.get(j);
+                if (!boss.isLive() || !playObj.isLive() || !boss.pk(playObj)) {
+                    continue;
+                }
+                if (playObj instanceof PaoPao) {
+                    PaoPao play = (PaoPao) playObj;
+                    long oldHurtTime = play.getHurtTime();
+                    play.hurt(gameTime, 1);
+                    if (play.getHurtTime() != oldHurtTime) {
+                        AudioPlayer.playOnce("music/die.wav");
+                    }
+                } else {
+                    playObj.setLive(false);
+                }
+            }
+        }
+    }
+
+    private void handleHostageRescue(List<ElementObj> plays, List<ElementObj> hostages) {
+        for (int i = hostages.size() - 1; i >= 0; i--) {
+            ElementObj hostageObj = hostages.get(i);
+            for (int j = plays.size() - 1; j >= 0; j--) {
+                ElementObj playObj = plays.get(j);
+                if (!hostageObj.isLive() || !playObj.isLive() || !hostageObj.pk(playObj)) {
+                    continue;
+                }
+                if (hostageObj instanceof Hostage) {
+                    ((Hostage) hostageObj).rescue();
+                } else {
+                    hostageObj.setLive(false);
+                }
+                break;
+            }
+        }
+    }
+
+    private void handleItemPickup(List<ElementObj> plays, List<ElementObj> items) {
+        if (plays.isEmpty()) {
+            return;
+        }
+        ElementObj playObj = plays.get(0);
+        if (!(playObj instanceof PaoPao)) {
+            return;
+        }
+        PaoPao play = (PaoPao) playObj;
+        for (int i = items.size() - 1; i >= 0; i--) {
+            ElementObj itemObj = items.get(i);
+            if (!itemObj.isLive() || !itemObj.pk(play)) {
+                continue;
+            }
+            if (itemObj instanceof SupplyItem) {
+                ((SupplyItem) itemObj).applyTo(play);
+            } else {
+                itemObj.setLive(false);
+            }
+        }
+    }
+
+    public void moveAndUpdate(Map<GameElement, List<ElementObj>> all, long gameTime) {
+        for (GameElement ge : GameElement.values()) {
+            List<ElementObj> list = all.get(ge);
+            for (int i = list.size() - 1; i >= 0; i--) {
+                ElementObj obj = list.get(i);
+                if (!obj.isLive()) {
+                    obj.die();
+                    list.remove(i);
+                    continue;
+                }
+                obj.model(gameTime);
+            }
+        }
+    }
+
+    private void gameOver() {
+        AudioPlayer.stopBgm();
+        while (!GameRuntime.restartRequested) {
+            try {
+                sleep(20);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        }
+        GameRuntime.waitingRestart = false;
+    }
+
+    private static final class StageConfig {
+        private final String title;
+        private final String mapPath;
+        private final int stageLength;
+        private final int hostageSpawnDistance;
+        private final int bossSpawnDistance;
+        private final int enemyInterval;
+        private final int maxEnemies;
+        private final int scoutChance;
+        private final int enemySpeedMin;
+        private final int enemySpeedMax;
+        private final int enemyHpMin;
+        private final int enemyHpMax;
+        private final int scoutSpeed;
+        private final int scoutHp;
+        private final int bossHp;
+        private final String hostageRewardType;
+
+        private StageConfig(String title, String mapPath, int stageLength,
+                            int hostageSpawnDistance, int bossSpawnDistance,
+                            int enemyInterval, int maxEnemies, int scoutChance,
+                            int enemySpeedMin, int enemySpeedMax,
+                            int enemyHpMin, int enemyHpMax,
+                            int scoutSpeed, int scoutHp,
+                            int bossHp, String hostageRewardType) {
+            this.title = title;
+            this.mapPath = mapPath;
+            this.stageLength = stageLength;
+            this.hostageSpawnDistance = hostageSpawnDistance;
+            this.bossSpawnDistance = bossSpawnDistance;
+            this.enemyInterval = enemyInterval;
+            this.maxEnemies = maxEnemies;
+            this.scoutChance = scoutChance;
+            this.enemySpeedMin = enemySpeedMin;
+            this.enemySpeedMax = enemySpeedMax;
+            this.enemyHpMin = enemyHpMin;
+            this.enemyHpMax = enemyHpMax;
+            this.scoutSpeed = scoutSpeed;
+            this.scoutHp = scoutHp;
+            this.bossHp = bossHp;
+            this.hostageRewardType = hostageRewardType;
+        }
+    }
 }
-
-
-
-
-
