@@ -22,6 +22,7 @@ public class PaoPao extends ElementObj {
     private static final int STAND_H = 54;
     private static final int CROUCH_H = 34;
     private static final int GROUND_LAYER_OVERLAP = 6;
+    private static final int MAX_HP = 3;
     private static final int CROUCH_LAYER_OVERLAP = 10;
     private static final long INVINCIBLE_WINDOW = 100;
     private static final int MOVE_FRAME_GAP = 6;
@@ -77,7 +78,7 @@ public class PaoPao extends ElementObj {
     private boolean weapon2Unlocked = false;
     private ImageIcon currentUpperFrame = lastFrame(UPPER_ATTACK_W1.select(true));
     private ImageIcon currentLowerFrame = firstFrame(LOWER_STAND.select(true));
-    private int hp = 3;
+    private int hp = MAX_HP;
     private int grenades = 8;
     private long hurtTime = -1000;
     private int speed = 5;
@@ -373,6 +374,10 @@ public class PaoPao extends ElementObj {
         return hp;
     }
 
+    public int getMaxHp() {
+        return MAX_HP;
+    }
+
     public int getGrenades() {
         return grenades;
     }
@@ -381,8 +386,16 @@ public class PaoPao extends ElementObj {
         return currentWeapon.label;
     }
 
+    public String getWeaponHudLabel() {
+        return currentWeapon == WeaponType.HEAVY ? "HEAVY" : "RIFLE";
+    }
+
     public boolean hasWeapon2() {
         return weapon2Unlocked;
+    }
+
+    public boolean isHeavyWeaponEquipped() {
+        return currentWeapon == WeaponType.HEAVY;
     }
 
     public long getHurtTime() {

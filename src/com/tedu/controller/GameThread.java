@@ -20,7 +20,7 @@ import java.util.Random;
 
 public class GameThread extends Thread {
     private static final StageConfig[] STAGES = {
-            new StageConfig("STAGE 1", "image/images/背景/backimage.png",
+            new StageConfig("STAGE 1", "image/images/背景/backimage.jpg",
                     2600, 900, 2050,
                     75, 6, 35,
                     2, 3, 2, 3,
@@ -104,13 +104,6 @@ public class GameThread extends Thread {
         }
         ElementObj mapA = mapAObj.createElement("0,0," + stage.mapPath);
         em.addElement(mapA, GameElement.MAPS);
-
-        ElementObj mapBObj = GameLoad.getObj("map");
-        if (mapBObj == null) {
-            return;
-        }
-        int mapWidth = Math.max(GameJFrame.GameX, mapA.getW());
-        em.addElement(mapBObj.createElement(mapWidth + ",0," + stage.mapPath), GameElement.MAPS);
     }
 
     private void clearStageElements() {
