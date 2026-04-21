@@ -91,7 +91,7 @@ public class GameThread extends Thread {
         }
 
         if (stageIndex == 0) {
-            GameRuntime.showBanner(stage.title + "  |  A/D move  F fire  L knife  U grenade  1/2 weapon", 2600);
+            GameRuntime.showBanner(stage.title + "  |  A/D move  J fire  L knife  U grenade  1/2 weapon", 2600);
         } else {
             GameRuntime.showBanner(stage.title, 1800);
         }
@@ -114,14 +114,14 @@ public class GameThread extends Thread {
     }
 
     private void clearStageElements() {
-        em.getElementsByKey(GameElement.MAPS).clear();
-        em.getElementsByKey(GameElement.ENEMY).clear();
-        em.getElementsByKey(GameElement.BOSS).clear();
-        em.getElementsByKey(GameElement.HOSTAGE).clear();
-        em.getElementsByKey(GameElement.ITEM).clear();
-        em.getElementsByKey(GameElement.PLAYFILE).clear();
-        em.getElementsByKey(GameElement.ENEMYFILE).clear();
-        em.getElementsByKey(GameElement.DIE).clear();
+        clearElements(GameElement.MAPS);
+        clearElements(GameElement.ENEMY);
+        clearElements(GameElement.BOSS);
+        clearElements(GameElement.HOSTAGE);
+        clearElements(GameElement.ITEM);
+        clearElements(GameElement.PLAYFILE);
+        clearElements(GameElement.ENEMYFILE);
+        clearElements(GameElement.DIE);
     }
 
     private void resetStageState(long gameTime) {
@@ -454,15 +454,24 @@ public class GameThread extends Thread {
     public void moveAndUpdate(Map<GameElement, List<ElementObj>> all, long gameTime) {
         for (GameElement ge : GameElement.values()) {
             List<ElementObj> list = all.get(ge);
-            for (int i = list.size() - 1; i >= 0; i--) {
-                ElementObj obj = list.get(i);
-                if (!obj.isLive()) {
-                    obj.die();
-                    list.remove(i);
-                    continue;
+            synchronized (list) {
+                for (int i = list.size() - 1; i >= 0; i--) {
+                    ElementObj obj = list.get(i);
+                    if (!obj.isLive()) {
+                        obj.die();
+                        list.remove(i);
+                        continue;
+                    }
+                    obj.model(gameTime);
                 }
-                obj.model(gameTime);
             }
+        }
+    }
+
+    private void clearElements(GameElement element) {
+        List<ElementObj> list = em.getElementsByKey(element);
+        synchronized (list) {
+            list.clear();
         }
     }
 

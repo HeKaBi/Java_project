@@ -48,17 +48,17 @@ public class GameMainJPanel extends JPanel implements Runnable {
         if (maps == null) {
             return;
         }
-        for (ElementObj map : maps) {
+        for (ElementObj map : snapshot(maps)) {
             map.showElement(g);
         }
     }
 
     private void drawActors(Graphics g, Map<GameElement, List<ElementObj>> all) {
         List<ElementObj> actors = new ArrayList<>();
-        addAll(actors, all.get(GameElement.HOSTAGE));
-        addAll(actors, all.get(GameElement.PLAY));
-        addAll(actors, all.get(GameElement.ENEMY));
-        addAll(actors, all.get(GameElement.BOSS));
+        addAll(actors, snapshot(all.get(GameElement.HOSTAGE)));
+        addAll(actors, snapshot(all.get(GameElement.PLAY)));
+        addAll(actors, snapshot(all.get(GameElement.ENEMY)));
+        addAll(actors, snapshot(all.get(GameElement.BOSS)));
         actors.sort(Comparator.comparingInt(ElementObj::getBottom));
         for (ElementObj actor : actors) {
             actor.showElement(g);
@@ -78,7 +78,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
             if (list == null) {
                 continue;
             }
-            for (ElementObj obj : list) {
+            for (ElementObj obj : snapshot(list)) {
                 obj.showElement(g);
             }
         }
@@ -93,9 +93,9 @@ public class GameMainJPanel extends JPanel implements Runnable {
         g2.setColor(new Color(214, 232, 255));
         g2.setFont(new Font("Dialog", Font.BOLD, 22));
 
-        List<ElementObj> plays = all.get(GameElement.PLAY);
-        if (plays != null && !plays.isEmpty() && plays.get(0) instanceof PaoPao) {
-            PaoPao play = (PaoPao) plays.get(0);
+        ElementObj[] plays = snapshot(all.get(GameElement.PLAY));
+        if (plays.length > 0 && plays[0] instanceof PaoPao) {
+            PaoPao play = (PaoPao) plays[0];
             g2.drawString("HP: " + play.getHp(), 24, 42);
             g2.drawString("Grenade: " + play.getGrenades(), 24, 70);
             g2.setFont(new Font("Dialog", Font.BOLD, 18));
@@ -109,9 +109,9 @@ public class GameMainJPanel extends JPanel implements Runnable {
         g2.drawString("Progress: " + GameRuntime.getStageProgressPercent() + "%", 196, 98);
         g2.drawString("Stage: " + GameRuntime.currentStage + "/" + Math.max(1, GameRuntime.totalStages), 196, 126);
 
-        List<ElementObj> bosses = all.get(GameElement.BOSS);
-        if (bosses != null && !bosses.isEmpty() && bosses.get(0) instanceof Boss) {
-            Boss boss = (Boss) bosses.get(0);
+        ElementObj[] bosses = snapshot(all.get(GameElement.BOSS));
+        if (bosses.length > 0 && bosses[0] instanceof Boss) {
+            Boss boss = (Boss) bosses[0];
             g2.setColor(new Color(40, 10, 10, 180));
             g2.fillRoundRect(348, 18, 320, 34, 16, 16);
             g2.setColor(new Color(255, 220, 220));
@@ -144,9 +144,23 @@ public class GameMainJPanel extends JPanel implements Runnable {
         g.drawString("Press R To Restart", 220, 380);
     }
 
-    private void addAll(List<ElementObj> actors, List<ElementObj> objs) {
-        if (objs != null) {
-            actors.addAll(objs);
+    private void addAll(List<ElementObj> actors, ElementObj[] objs) {
+        if (objs == null) {
+            return;
+        }
+        for (ElementObj obj : objs) {
+            if (obj != null) {
+                actors.add(obj);
+            }
+        }
+    }
+
+    private ElementObj[] snapshot(List<ElementObj> objs) {
+        if (objs == null) {
+            return new ElementObj[0];
+        }
+        synchronized (objs) {
+            return objs.toArray(new ElementObj[0]);
         }
     }
 

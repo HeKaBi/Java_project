@@ -116,7 +116,7 @@ public class GameJFrame extends JFrame {
         bindKey(component, listener, KeyEvent.VK_W, "w");
         bindKey(component, listener, KeyEvent.VK_S, "s");
         bindKey(component, listener, KeyEvent.VK_E, "e");
-        bindKey(component, listener, KeyEvent.VK_F, "f");
+        bindKey(component, listener, KeyEvent.VK_J, "j");
         bindKey(component, listener, KeyEvent.VK_L, "l");
         bindKey(component, listener, KeyEvent.VK_U, "u");
         bindKey(component, listener, KeyEvent.VK_SHIFT, "shift");

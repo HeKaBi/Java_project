@@ -32,7 +32,10 @@ public class ElementManager {
 	public void addElement(ElementObj obj,GameElement ge) {
 //		List<ElementObj> list = gameElements.get(ge);
 //		list.add(obj);
-		gameElements.get(ge).add(obj);//添加对象到集合中，按key值就行存储
+		List<ElementObj> list = gameElements.get(ge);
+		synchronized (list) {
+			list.add(obj);//添加对象到集合中，按key值就行存储
+		}
 	}
 //	依据key返回 list集合，取出某一类元素
 	public List<ElementObj> getElementsByKey(GameElement ge){
@@ -84,7 +87,6 @@ public class ElementManager {
 	}
 	
 }
-
 
 
 
