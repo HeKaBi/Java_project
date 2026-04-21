@@ -77,7 +77,8 @@ public class PaoPao extends ElementObj {
     private boolean weapon2Unlocked = false;
     private ImageIcon currentUpperFrame = lastFrame(UPPER_ATTACK_W1.select(true));
     private ImageIcon currentLowerFrame = firstFrame(LOWER_STAND.select(true));
-    private int hp = 30;
+    private int maxHp = 30;
+    private int hp = maxHp;
     private int grenades = 8;
     private long hurtTime = -1000;
     private int speed = 5;
@@ -336,6 +337,8 @@ public class PaoPao extends ElementObj {
         this.setH(STAND_H);
         this.currentWeapon = WeaponType.RIFLE;
         this.weapon2Unlocked = false;
+        this.maxHp = 30;
+        this.hp = maxHp;
         this.currentUpperFrame = lastFrame(currentWeapon.attack.select(true));
         this.currentLowerFrame = firstFrame(LOWER_STAND.select(true));
         this.groundBottom = this.getY() + this.getH();
@@ -371,12 +374,24 @@ public class PaoPao extends ElementObj {
         return hp;
     }
 
+    public int getMaxHp() {
+        return maxHp;
+    }
+
     public int getGrenades() {
         return grenades;
     }
 
+    public String getWeaponHudLabel() {
+        return currentWeapon.hudLabel;
+    }
+
     public String getWeaponName() {
         return currentWeapon.label;
+    }
+
+    public boolean isHeavyWeaponEquipped() {
+        return currentWeapon == WeaponType.HEAVY;
     }
 
     public boolean hasWeapon2() {
@@ -810,10 +825,11 @@ public class PaoPao extends ElementObj {
     }
 
     private enum WeaponType {
-        RIFLE("步枪", UPPER_AIM_UP_W1, UPPER_ATTACK_W1, PLAYER_BULLET_LEFT, PLAYER_BULLET_RIGHT, 6, 1, 14),
-        HEAVY("重机枪", UPPER_AIM_UP_W2, UPPER_ATTACK_W2, PLAYER_HEAVY_BULLET_LEFT, PLAYER_HEAVY_BULLET_RIGHT, 10, 2, 18);
+        RIFLE("步枪", "RIFLE", UPPER_AIM_UP_W1, UPPER_ATTACK_W1, PLAYER_BULLET_LEFT, PLAYER_BULLET_RIGHT, 6, 1, 14),
+        HEAVY("重机枪", "HEAVY", UPPER_AIM_UP_W2, UPPER_ATTACK_W2, PLAYER_HEAVY_BULLET_LEFT, PLAYER_HEAVY_BULLET_RIGHT, 10, 2, 18);
 
         private final String label;
+        private final String hudLabel;
         private final DirectionalFrames aimUp;
         private final DirectionalFrames attack;
         private final String leftBullet;
@@ -822,9 +838,10 @@ public class PaoPao extends ElementObj {
         private final int damage;
         private final int bulletSpeed;
 
-        WeaponType(String label, DirectionalFrames aimUp, DirectionalFrames attack,
+        WeaponType(String label, String hudLabel, DirectionalFrames aimUp, DirectionalFrames attack,
                    String leftBullet, String rightBullet, int fireInterval, int damage, int bulletSpeed) {
             this.label = label;
+            this.hudLabel = hudLabel;
             this.aimUp = aimUp;
             this.attack = attack;
             this.leftBullet = leftBullet;
