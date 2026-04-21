@@ -32,6 +32,10 @@ public class Enemy extends ElementObj {
     private long nextAttackTime = 0L;
     private int desiredRange = 18;
     private int attackRange = 36;
+    private boolean attackFaceRight = false;
+    private int attackTargetCenterX = Integer.MIN_VALUE;
+    private int attackTargetCenterY = Integer.MIN_VALUE;
+    private int attackTargetDistanceX = 150;
     private ImageIcon currentFrame = firstFrame(EnemyType.ENEMY1.frames);
 
     @Override
@@ -55,14 +59,17 @@ public class Enemy extends ElementObj {
     protected void move() {
         ElementObj player = getPlayer();
         int x = this.getX() - GameRuntime.worldScrollX;
-        if (player != null) {
+        if (player != null && !attacking) {
             int dx = player.getCenterX() - this.getCenterX();
             faceRight = dx > 0;
             int distance = Math.abs(dx);
-            if (!attacking && distance > desiredRange) {
+            if (distance > desiredRange) {
                 int desiredX = x + (dx > 0 ? speed : -speed);
                 x = resolveGroundMove(x, desiredX);
             }
+        }
+        if (attacking) {
+            faceRight = attackFaceRight;
         }
         int footX = x + this.getW() / 2;
         this.setX(x);
@@ -75,20 +82,23 @@ public class Enemy extends ElementObj {
     @Override
     protected void updateImage(long gameTime) {
         ElementObj player = getPlayer();
-        if (player != null) {
+        if (player != null && !attacking) {
             faceRight = player.getCenterX() > this.getCenterX();
             int distance = Math.abs(player.getCenterX() - this.getCenterX());
-            if (!attacking && distance <= attackRange && gameTime >= nextAttackTime) {
-                attacking = true;
-                attackStartTime = gameTime;
-                firedThisAttack = false;
+            if (distance <= attackRange && gameTime >= nextAttackTime) {
+                beginAttack(player, gameTime);
             }
         }
-        if (attacking && attackStartTime >= 0 && gameTime - attackStartTime > type.attackDuration) {
+        if (attacking && attackStartTime >= 0 && gameTime - attackStartTime > resolveAttackDuration()) {
             attacking = false;
             nextAttackTime = gameTime + randomBetween(type.cooldownMin, type.cooldownMax);
+            clearAttackTarget();
         }
-        currentFrame = selectFrame(type.frames, gameTime, type.frameGap);
+        if (attacking && attackStartTime >= 0) {
+            currentFrame = selectAttackFrame(type.frames, gameTime - attackStartTime, type.attackFrameGap);
+        } else {
+            currentFrame = selectLoopFrame(type.frames, gameTime, type.frameGap);
+        }
         if (currentFrame != null) {
             this.setIcon(currentFrame);
         }
@@ -130,6 +140,8 @@ public class Enemy extends ElementObj {
         this.attackStartTime = -1L;
         this.nextAttackTime = 0L;
         this.countedKill = false;
+        this.attackFaceRight = false;
+        clearAttackTarget();
         this.currentFrame = firstFrame(type.frames);
         if (currentFrame != null) {
             this.setIcon(currentFrame);
@@ -169,24 +181,25 @@ public class Enemy extends ElementObj {
         ElementObj player = getPlayer();
         ImageIcon projectileIcon = GameLoad.getImage(type.projectilePath);
         int projectileW = projectileIcon == null ? 18 : projectileIcon.getIconWidth();
-        int bulletX = faceRight ? this.getX() + this.getW() - 6 : this.getX() + 6 - projectileW;
+        boolean firingRight = attacking ? attackFaceRight : faceRight;
+        int bulletX = firingRight ? this.getX() + this.getW() - 6 : this.getX() + 6 - projectileW;
         int bulletY = this.getY() + type.projectileSpawnOffsetY;
+        int targetCenterX = resolveAttackTargetCenterX(player);
+        int targetCenterY = resolveAttackTargetCenterY(player);
         double bulletVx;
         double bulletVy;
         if (type == EnemyType.ENEMY1) {
-            int dx = player == null
-                    ? (faceRight ? 150 : -150)
-                    : player.getCenterX() - this.getCenterX();
-            bulletVx = clamp(Math.abs(dx) / 24.0, 4.5, 8.0);
-            bulletVx = dx >= 0 ? bulletVx : -bulletVx;
-            bulletVy = -10.0 - Math.min(4.0, Math.abs(dx) / 90.0);
+            double horizontalDistance = Math.max(24.0, attackTargetDistanceX);
+            bulletVx = clamp(horizontalDistance / 24.0, 4.5, 8.0);
+            bulletVx = firingRight ? bulletVx : -bulletVx;
+            bulletVy = -10.0 - Math.min(4.0, horizontalDistance / 90.0);
         } else {
-            bulletVx = faceRight ? type.projectileSpeed : -type.projectileSpeed;
-            if (player == null) {
+            bulletVx = firingRight ? type.projectileSpeed : -type.projectileSpeed;
+            if (targetCenterY == Integer.MIN_VALUE) {
                 bulletVy = 0.0;
             } else {
                 bulletVy = clamp(
-                        (player.getCenterY() - (this.getY() + type.projectileSpawnOffsetY)) / (double) type.verticalAimDivisor,
+                        (targetCenterY - (this.getY() + type.projectileSpawnOffsetY)) / (double) type.verticalAimDivisor,
                         type.minProjectileVy,
                         type.maxProjectileVy);
             }
@@ -194,7 +207,8 @@ public class Enemy extends ElementObj {
         ElementObj bullet = bulletTemplate.createElement(
                 bulletX + "," + bulletY + "," + type.projectilePath + ","
                         + bulletVx + "," + bulletVy + "," + type.damage + ","
-                        + type.projectileGravity + "," + (type.stopOnGround ? "1" : "0"));
+                        + type.projectileGravity + "," + (type.stopOnGround ? "1" : "0") + ","
+                        + type.impactEffectSize);
         em.addElement(bullet, GameElement.ENEMYFILE);
     }
 
@@ -216,7 +230,8 @@ public class Enemy extends ElementObj {
 
     private Rectangle resolveMeleeHitbox() {
         int reach = type.meleeReach;
-        int hitX = faceRight ? this.getCenterX() - 4 : this.getCenterX() - reach + 4;
+        boolean rightFacing = attacking ? attackFaceRight : faceRight;
+        int hitX = rightFacing ? this.getCenterX() - 4 : this.getCenterX() - reach + 4;
         int hitY = this.getY() - 4;
         return new Rectangle(hitX, hitY, reach, this.getH() + 8);
     }
@@ -226,11 +241,33 @@ public class Enemy extends ElementObj {
         return plays.isEmpty() ? null : plays.get(0);
     }
 
-    private ImageIcon selectFrame(List<ImageIcon> frames, long gameTime, int frameGap) {
+    private long resolveAttackDuration() {
+        if (type.frames == null || type.frames.isEmpty()) {
+            return type.attackDuration;
+        }
+        long minimumDuration = (long) Math.max(0, type.frames.size() - 1) * Math.max(1, type.attackFrameGap);
+        return Math.max(type.attackDuration, minimumDuration);
+    }
+
+    private ImageIcon selectLoopFrame(List<ImageIcon> frames, long gameTime, int frameGap) {
         if (frames == null || frames.isEmpty()) {
             return null;
         }
         int index = (int) ((gameTime / Math.max(1, frameGap)) % frames.size());
+        return frames.get(index);
+    }
+
+    private ImageIcon selectAttackFrame(List<ImageIcon> frames, long elapsedTime, int frameGap) {
+        if (frames == null || frames.isEmpty()) {
+            return null;
+        }
+        int index = (int) (elapsedTime / Math.max(1, frameGap));
+        if (index < 0) {
+            index = 0;
+        }
+        if (index >= frames.size()) {
+            index = frames.size() - 1;
+        }
         return frames.get(index);
     }
 
@@ -259,6 +296,46 @@ public class Enemy extends ElementObj {
         return min + random.nextInt(max - min + 1);
     }
 
+    private void beginAttack(ElementObj player, long gameTime) {
+        attacking = true;
+        attackStartTime = gameTime;
+        firedThisAttack = false;
+        attackFaceRight = player == null ? faceRight : player.getCenterX() >= this.getCenterX();
+        faceRight = attackFaceRight;
+        if (player == null) {
+            attackTargetCenterX = this.getCenterX() + (attackFaceRight ? 150 : -150);
+            attackTargetCenterY = this.getCenterY();
+            attackTargetDistanceX = 150;
+        } else {
+            attackTargetCenterX = player.getCenterX();
+            attackTargetCenterY = player.getCenterY();
+            attackTargetDistanceX = Math.max(24, Math.abs(player.getCenterX() - this.getCenterX()));
+        }
+    }
+
+    private int resolveAttackTargetCenterX(ElementObj player) {
+        if (attackTargetCenterX != Integer.MIN_VALUE) {
+            return attackTargetCenterX;
+        }
+        if (player != null) {
+            return player.getCenterX();
+        }
+        return this.getCenterX() + ((attacking ? attackFaceRight : faceRight) ? 150 : -150);
+    }
+
+    private int resolveAttackTargetCenterY(ElementObj player) {
+        if (attackTargetCenterY != Integer.MIN_VALUE) {
+            return attackTargetCenterY;
+        }
+        return player == null ? Integer.MIN_VALUE : player.getCenterY();
+    }
+
+    private void clearAttackTarget() {
+        attackTargetCenterX = Integer.MIN_VALUE;
+        attackTargetCenterY = Integer.MIN_VALUE;
+        attackTargetDistanceX = 150;
+    }
+
     private static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
     }
@@ -283,11 +360,11 @@ public class Enemy extends ElementObj {
                 "image/images/Enemy/enemy1/20070130041731OFQDOJuj-215.png",
                 0, 0,
                 120, 180, 36,
-                10, 36, 58, 90,
-                4, 1,
+                20, 72, 110, 150,
+                5, 12, 1,
                 0.0, 0.45, true,
                 18, 24, -2.0, 2.0,
-                false, 0),
+                false, 0, 96),
         ENEMY2("enemy2",
                 GameLoad.loadFrames(
                         "image/images/Enemy/enemy2/enemy_attack000.png",
@@ -297,11 +374,11 @@ public class Enemy extends ElementObj {
                 null,
                 1, 1,
                 6, 14, 18,
-                8, 20, 22, 36,
-                5, 1,
+                18, 42, 90, 120,
+                7, 14, 1,
                 0.0, 0.0, false,
                 14, 18, -1.0, 1.0,
-                true, 46),
+                true, 46, 0),
         ENEMY3("enemy3",
                 GameLoad.loadFrames(
                         "image/images/Enemy/enemy3/20070130041731OFQDOJuj-211.png",
@@ -315,11 +392,11 @@ public class Enemy extends ElementObj {
                 "image/images/Enemy/enemy3/20070130041731OFQDOJuj-230.png",
                 0, 0,
                 130, 190, 42,
-                12, 30, 48, 72,
-                5, 1,
+                20, 70, 95, 135,
+                5, 12, 1,
                 7.0, 0.12, true,
                 20, 26, -2.5, 3.0,
-                false, 0),
+                false, 0, 110),
         ENEMY4("enemy4",
                 GameLoad.loadFrames(
                         "image/images/Enemy/enemy4/20070130041731OFQDOJuj-200.png",
@@ -336,11 +413,11 @@ public class Enemy extends ElementObj {
                 "image/images/Enemy/enemy4/bomb1.png",
                 1, 0,
                 110, 160, 52,
-                8, 18, 20, 36,
-                5, 1,
+                18, 60, 75, 110,
+                5, 12, 1,
                 11.0, 0.0, false,
                 18, 18, -3.0, 3.0,
-                false, 0);
+                false, 0, 120);
 
         private final String key;
         private final List<ImageIcon> frames;
@@ -355,6 +432,7 @@ public class Enemy extends ElementObj {
         private final int cooldownMin;
         private final int cooldownMax;
         private final int frameGap;
+        private final int attackFrameGap;
         private final int damage;
         private final double projectileSpeed;
         private final double projectileGravity;
@@ -365,16 +443,17 @@ public class Enemy extends ElementObj {
         private final double maxProjectileVy;
         private final boolean melee;
         private final int meleeReach;
+        private final int impactEffectSize;
 
         EnemyType(String key, List<ImageIcon> frames, String projectilePath,
                   int speedOffset, int hpOffset,
                   int rangeMin, int rangeMax, int attackRangePadding,
                   int attackWindup, int attackDuration, int cooldownMin, int cooldownMax,
-                  int frameGap, int damage,
+                  int frameGap, int attackFrameGap, int damage,
                   double projectileSpeed, double projectileGravity, boolean stopOnGround,
                   int projectileSpawnOffsetY, int verticalAimDivisor,
                   double minProjectileVy, double maxProjectileVy,
-                  boolean melee, int meleeReach) {
+                  boolean melee, int meleeReach, int impactEffectSize) {
             this.key = key;
             this.frames = frames;
             this.projectilePath = projectilePath;
@@ -388,6 +467,7 @@ public class Enemy extends ElementObj {
             this.cooldownMin = cooldownMin;
             this.cooldownMax = cooldownMax;
             this.frameGap = frameGap;
+            this.attackFrameGap = attackFrameGap;
             this.damage = damage;
             this.projectileSpeed = projectileSpeed;
             this.projectileGravity = projectileGravity;
@@ -398,6 +478,7 @@ public class Enemy extends ElementObj {
             this.maxProjectileVy = maxProjectileVy;
             this.melee = melee;
             this.meleeReach = meleeReach;
+            this.impactEffectSize = impactEffectSize;
         }
 
         private static EnemyType fromKey(String key) {

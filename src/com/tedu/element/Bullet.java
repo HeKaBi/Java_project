@@ -9,6 +9,7 @@ import javax.swing.ImageIcon;
 
 public class Bullet extends ElementObj {
     private static final int HORIZONTAL_LANE_PADDING_Y = 10;
+    private static final int TERRAIN_CONTACT_MARGIN = 1;
 
     private int vx = 10;
     private int vy = 0;
@@ -26,8 +27,16 @@ public class Bullet extends ElementObj {
 
     @Override
     protected void move() {
-        this.setX(this.getX() + vx - GameRuntime.worldScrollX);
-        this.setY(this.getY() + vy);
+        int startX = this.getX();
+        int startY = this.getY();
+        int targetX = startX + vx - GameRuntime.worldScrollX;
+        int targetY = startY + vy;
+        if (moveIntoTerrain(startX, startY, targetX, targetY)) {
+            this.setLive(false);
+            return;
+        }
+        this.setX(targetX);
+        this.setY(targetY);
         if (this.getX() > GameJFrame.GameX + 60 || this.getX() + this.getW() < -60) {
             this.setLive(false);
             return;
@@ -75,5 +84,36 @@ public class Bullet extends ElementObj {
                     this.getH() + HORIZONTAL_LANE_PADDING_Y * 2);
         }
         return super.getRectangle();
+    }
+
+    private boolean moveIntoTerrain(int startX, int startY, int targetX, int targetY) {
+        int dx = targetX - startX;
+        int dy = targetY - startY;
+        int steps = Math.max(1, Math.max(Math.abs(dx), Math.abs(dy)));
+        for (int step = 1; step <= steps; step++) {
+            double ratio = step / (double) steps;
+            int candidateX = (int) Math.round(startX + dx * ratio);
+            int candidateY = (int) Math.round(startY + dy * ratio);
+            if (!collidesWithTerrain(candidateX, candidateY, dx)) {
+                continue;
+            }
+            this.setX(candidateX);
+            this.setY(candidateY);
+            return true;
+        }
+        return false;
+    }
+
+    private boolean collidesWithTerrain(int candidateX, int candidateY, int dx) {
+        int bottomY = candidateY + this.getH() - TERRAIN_CONTACT_MARGIN;
+        int centerX = candidateX + this.getW() / 2;
+        if (bottomY >= GameRuntime.getBattlefieldMaxBottomAt(centerX)) {
+            return true;
+        }
+        if (dx == 0) {
+            return false;
+        }
+        int frontX = candidateX + (dx > 0 ? this.getW() - 1 : 0);
+        return bottomY >= GameRuntime.getBattlefieldMaxBottomAt(frontX);
     }
 }

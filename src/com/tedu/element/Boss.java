@@ -144,7 +144,7 @@ public class Boss extends ElementObj {
         int bulletX = this.getX() - 8;
         int bulletY = this.getY() + 36;
         ElementObj bullet = bulletTemplate.createElement(
-                bulletX + "," + bulletY + "," + BOSS_BULLET + ",-10," + vy + "," + damage);
+                bulletX + "," + bulletY + "," + BOSS_BULLET + ",-10," + vy + "," + damage + ",0.0,0,120");
         em.addElement(bullet, GameElement.ENEMYFILE);
     }
 
