@@ -138,11 +138,11 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
         drawCenteredShadowedText(g2, loadingStart ? "MISSION START" : "NEW GAME", centerX, titleY,
                 START_PROMPT_FONT, titleColor, new Color(24, 20, 34, 110), 2);
-        drawCenteredShadowedText(g2, loadingStart ? "ENTERING STAGE 1" : "PRESS ENTER OR SPACE",
+        drawCenteredShadowedText(g2, loadingStart ? "ENTERING STAGE 1" : "PRESS ENTER",
                 centerX + 4, titleY + 36,
                 START_ACTION_FONT, accentColor, new Color(19, 14, 22, 90), 1);
         drawCenteredShadowedText(g2,
-                loadingStart ? "Loading terrain and mission units" : "A/D move   Space jump   Ctrl crouch",
+                loadingStart ? "Loading terrain and mission units" : "A/D move   W double jump   E aim up   Ctrl crouch",
                 centerX + 4, titleY + 62, START_INFO_FONT,
                 new Color(230, 238, 244, loadingStart ? 230 : 210), new Color(8, 10, 18, 110), 1);
         drawAccentLine(g2, centerX, titleY + 76, 132 + pulse, accentColor);

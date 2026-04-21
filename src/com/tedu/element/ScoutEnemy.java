@@ -13,13 +13,15 @@ import javax.swing.ImageIcon;
 public class ScoutEnemy extends ElementObj {
     private static final int HITBOX_W = 48;
     private static final int HITBOX_H = 72;
+    private static final int MAX_STEP_UP = 12;
+    private static final int GROUND_PROBE_INSET = 5;
     private static final List<ImageIcon> RUN_FRAMES =
             GameLoad.loadFramesFromDirectory("image/images/Enemy/R/sca");
 
     private final ElementManager em = ElementManager.getManager();
 
     private int hp = 1;
-    private int speed = 4;
+    private int speed = 3;
     private boolean faceRight = false;
     private boolean countedKill = false;
     private ImageIcon currentFrame = RUN_FRAMES.isEmpty() ? null : RUN_FRAMES.get(0);
@@ -44,17 +46,18 @@ public class ScoutEnemy extends ElementObj {
     @Override
     protected void move() {
         int x = this.getX() - GameRuntime.worldScrollX;
-        int bottom = GameRuntime.clampBattlefieldBottom(this.getY() + this.getH());
         ElementObj player = getPlayer();
         if (player != null) {
             int dx = player.getCenterX() - this.getCenterX();
             faceRight = dx > 0;
             if (Math.abs(dx) > 18) {
-                x += dx > 0 ? speed : -speed;
+                int desiredX = x + (dx > 0 ? speed : -speed);
+                x = resolveGroundMove(x, desiredX);
             }
         }
+        int footX = x + this.getW() / 2;
         this.setX(x);
-        this.setY(bottom - this.getH());
+        this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - this.getH());
         if (this.getX() + this.getW() < -120 || this.getX() > GameJFrame.GameX + 160) {
             this.setLive(false);
         }
@@ -72,10 +75,10 @@ public class ScoutEnemy extends ElementObj {
     public ElementObj createElement(String str) {
         String[] split = str.split(",");
         this.setX(Integer.parseInt(split[0]));
-        int bottom = GameRuntime.clampBattlefieldBottom(Integer.parseInt(split[1]) + HITBOX_H);
-        this.setY(bottom - HITBOX_H);
         this.setW(HITBOX_W);
         this.setH(HITBOX_H);
+        int footX = this.getX() + HITBOX_W / 2;
+        this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - HITBOX_H);
         if (split.length > 2) {
             this.speed = Integer.parseInt(split[2]);
         }
@@ -116,5 +119,23 @@ public class ScoutEnemy extends ElementObj {
     private ElementObj getPlayer() {
         List<ElementObj> plays = em.getElementsByKey(GameElement.PLAY);
         return plays.isEmpty() ? null : plays.get(0);
+    }
+
+    private int resolveGroundMove(int currentX, int desiredX) {
+        if (desiredX == currentX) {
+            return currentX;
+        }
+        int step = desiredX > currentX ? 1 : -1;
+        int resolvedX = currentX;
+        int actorBottom = this.getY() + this.getH();
+        for (int candidateX = currentX + step; candidateX != desiredX + step; candidateX += step) {
+            int frontX = candidateX + (step > 0 ? this.getW() - GROUND_PROBE_INSET : GROUND_PROBE_INSET);
+            int frontSurface = GameRuntime.getBattlefieldMaxBottomAt(frontX);
+            if (actorBottom - frontSurface > MAX_STEP_UP) {
+                break;
+            }
+            resolvedX = candidateX;
+        }
+        return resolvedX;
     }
 }

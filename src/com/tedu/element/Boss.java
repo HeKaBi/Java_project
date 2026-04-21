@@ -21,7 +21,7 @@ public class Boss extends ElementObj {
 
     private int hp = 24;
     private int maxHp = 24;
-    private int patrolSpeed = 3;
+    private int patrolSpeed = 2;
     private boolean entered = false;
     private boolean patrolRight = false;
     private boolean countedKill = false;
@@ -63,7 +63,8 @@ public class Boss extends ElementObj {
             }
         }
         this.setX(x);
-        this.setY(GameRuntime.getBattlefieldMaxBottom() - this.getH());
+        int footX = this.getX() + this.getW() / 2;
+        this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - this.getH());
     }
 
     @Override

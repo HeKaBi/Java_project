@@ -19,17 +19,19 @@ import java.util.Map;
 import java.util.Random;
 
 public class GameThread extends Thread {
+    private static final String DEFAULT_STAGE_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
+    private static final String[] ENEMY_TYPES = {"enemy1", "enemy2", "enemy3", "enemy4"};
     private static final StageConfig[] STAGES = {
-            new StageConfig("STAGE 1", "image/images/背景/backimage.jpg",
+            new StageConfig("STAGE 1", DEFAULT_STAGE_MAP_PATH,
                     2600, 900, 2050,
                     75, 6, 35,
-                    2, 3, 2, 3,
-                    4, 1, 24, "weapon2"),
-            new StageConfig("STAGE 2", "image/images/背景/backimage1.gif",
+                    1, 2, 2, 3,
+                    3, 1, 24, "weapon2"),
+            new StageConfig("STAGE 2", DEFAULT_STAGE_MAP_PATH,
                     3600, 1200, 3050,
                     55, 8, 55,
-                    3, 4, 3, 4,
-                    5, 2, 36, "grenade")
+                    2, 3, 3, 4,
+                    4, 2, 36, "grenade")
     };
 
     private final ElementManager em;
@@ -93,8 +95,8 @@ public class GameThread extends Thread {
         StageConfig stage = getCurrentStage();
         clearStageElements();
         resetStageState(gameTime);
-        GameRuntime.beginStage(stageIndex + 1, STAGES.length, stage.stageLength);
-        loadMap(stage);
+        int resolvedStageLength = loadMap(stage);
+        GameRuntime.beginStage(stageIndex + 1, STAGES.length, resolvedStageLength);
 
         PaoPao player = existingPlayer;
         if (player == null) {
@@ -106,19 +108,21 @@ public class GameThread extends Thread {
         }
 
         if (stageIndex == 0) {
-            GameRuntime.showBanner(stage.title + "  |  A/D move  Space jump  Ctrl crouch", 2600);
+            GameRuntime.showBanner(stage.title + "  |  A/D move  W double jump  E aim up  Ctrl crouch", 2600);
         } else {
             GameRuntime.showBanner(stage.title, 1800);
         }
     }
 
-    private void loadMap(StageConfig stage) {
+    private int loadMap(StageConfig stage) {
         ElementObj mapAObj = GameLoad.getObj("map");
         if (mapAObj == null) {
-            return;
+            return stage.minStageLength;
         }
         ElementObj mapA = mapAObj.createElement("0,0," + stage.mapPath);
         em.addElement(mapA, GameElement.MAPS);
+        int actualScrollLength = Math.max(0, mapA.getW() - GameJFrame.GameX);
+        return Math.max(stage.minStageLength, actualScrollLength);
     }
 
     private void clearStageElements() {
@@ -175,8 +179,6 @@ public class GameThread extends Thread {
             handlePlayerProjectilesHitEnemies(playFiles, enemys);
             handlePlayerProjectilesHitBoss(playFiles, bosses);
             handleEnemyProjectilesHitPlayer(enemyFiles, plays, gameTime);
-            handleEnemyContact(enemys, plays, gameTime);
-            handleBossContact(bosses, plays, gameTime);
             handleHostageRescue(plays, hostages);
             handleItemPickup(plays, items);
 
@@ -224,18 +226,22 @@ public class GameThread extends Thread {
 
     private void spawnSceneObjects(long gameTime, List<ElementObj> enemys, List<ElementObj> bosses, List<ElementObj> hostages) {
         StageConfig stage = getCurrentStage();
-        if (!hostageSpawned && GameRuntime.stageDistance >= stage.hostageSpawnDistance) {
+        int hostageSpawnDistance = stage.resolveHostageSpawnDistance(GameRuntime.stageLength);
+        int bossSpawnDistance = stage.resolveBossSpawnDistance(GameRuntime.stageLength);
+        if (!hostageSpawned && GameRuntime.stageDistance >= hostageSpawnDistance) {
             hostageSpawned = true;
             ElementObj hostage = new Hostage().createElement((GameJFrame.GameX + 160) + ",0," + stage.hostageRewardType);
-            hostage.setY(GameRuntime.getBattlefieldMaxBottom() - hostage.getH());
+            int footX = hostage.getX() + hostage.getW() / 2;
+            hostage.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - hostage.getH());
             em.addElement(hostage, GameElement.HOSTAGE);
             GameRuntime.showBanner("Found a hostage", 1400);
         }
-        if (!bossSpawned && GameRuntime.stageDistance >= stage.bossSpawnDistance) {
+        if (!bossSpawned && GameRuntime.stageDistance >= bossSpawnDistance) {
             bossSpawned = true;
             GameRuntime.stageDistance = GameRuntime.stageLength;
             ElementObj boss = new Boss().createElement((GameJFrame.GameX + 220) + ",0," + stage.bossHp);
-            boss.setY(GameRuntime.getBattlefieldMaxBottom() - boss.getH());
+            int footX = boss.getX() + boss.getW() / 2;
+            boss.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - boss.getH());
             em.addElement(boss, GameElement.BOSS);
             GameRuntime.showBanner("Boss incoming", 1800);
             return;
@@ -254,22 +260,17 @@ public class GameThread extends Thread {
             return;
         }
         enemyAddTime = gameTime;
-        int bottom = randomBattlefieldBottom();
-        if (random.nextInt(100) < stage.scoutChance) {
-            ElementObj scout = new ScoutEnemy().createElement(
-                    (GameJFrame.GameX + 20) + "," + (bottom - 72) + "," + stage.scoutSpeed + "," + stage.scoutHp);
-            scout.setY(bottom - scout.getH());
-            em.addElement(scout, GameElement.ENEMY);
-            return;
-        }
+        int spawnX = GameJFrame.GameX + 20;
+        int bottom = randomBattlefieldBottom(spawnX);
         ElementObj enemyObj = GameLoad.getObj("enemy");
         if (enemyObj == null) {
             return;
         }
         int speed = randomBetween(stage.enemySpeedMin, stage.enemySpeedMax);
         int hp = randomBetween(stage.enemyHpMin, stage.enemyHpMax);
+        String enemyType = ENEMY_TYPES[random.nextInt(ENEMY_TYPES.length)];
         ElementObj enemy = enemyObj.createElement(
-                (GameJFrame.GameX + 20) + "," + (bottom - 72) + ",enemy," + speed + "," + hp);
+                spawnX + "," + (bottom - 72) + "," + enemyType + "," + speed + "," + hp);
         enemy.setY(bottom - enemy.getH());
         em.addElement(enemy, GameElement.ENEMY);
     }
@@ -281,13 +282,8 @@ public class GameThread extends Thread {
         return min + random.nextInt(max - min + 1);
     }
 
-    private int randomBattlefieldBottom() {
-        int minBottom = GameRuntime.getBattlefieldMinBottom();
-        int maxBottom = GameRuntime.getBattlefieldMaxBottom();
-        if (maxBottom <= minBottom) {
-            return minBottom;
-        }
-        return minBottom + random.nextInt(maxBottom - minBottom + 1);
+    private int randomBattlefieldBottom(int screenX) {
+        return GameRuntime.getBattlefieldMaxBottomAt(screenX);
     }
 
     private void handlePlayerProjectilesHitEnemies(List<ElementObj> playFiles, List<ElementObj> enemys) {
@@ -373,52 +369,6 @@ public class GameThread extends Thread {
         }
     }
 
-    private void handleEnemyContact(List<ElementObj> enemys, List<ElementObj> plays, long gameTime) {
-        for (int i = enemys.size() - 1; i >= 0; i--) {
-            ElementObj enemy = enemys.get(i);
-            for (int j = plays.size() - 1; j >= 0; j--) {
-                ElementObj playObj = plays.get(j);
-                if (!enemy.isLive() || !playObj.isLive() || !enemy.pk(playObj)) {
-                    continue;
-                }
-                if (playObj instanceof PaoPao) {
-                    PaoPao play = (PaoPao) playObj;
-                    long oldHurtTime = play.getHurtTime();
-                    play.hurt(gameTime, 1);
-                    if (play.getHurtTime() != oldHurtTime) {
-                        AudioPlayer.playOnce("music/die.wav");
-                    }
-                } else {
-                    playObj.setLive(false);
-                }
-                enemy.setLive(false);
-                break;
-            }
-        }
-    }
-
-    private void handleBossContact(List<ElementObj> bosses, List<ElementObj> plays, long gameTime) {
-        for (int i = bosses.size() - 1; i >= 0; i--) {
-            ElementObj boss = bosses.get(i);
-            for (int j = plays.size() - 1; j >= 0; j--) {
-                ElementObj playObj = plays.get(j);
-                if (!boss.isLive() || !playObj.isLive() || !boss.pk(playObj)) {
-                    continue;
-                }
-                if (playObj instanceof PaoPao) {
-                    PaoPao play = (PaoPao) playObj;
-                    long oldHurtTime = play.getHurtTime();
-                    play.hurt(gameTime, 1);
-                    if (play.getHurtTime() != oldHurtTime) {
-                        AudioPlayer.playOnce("music/die.wav");
-                    }
-                } else {
-                    playObj.setLive(false);
-                }
-            }
-        }
-    }
-
     private void handleHostageRescue(List<ElementObj> plays, List<ElementObj> hostages) {
         for (int i = hostages.size() - 1; i >= 0; i--) {
             ElementObj hostageObj = hostages.get(i);
@@ -498,9 +448,9 @@ public class GameThread extends Thread {
     private static final class StageConfig {
         private final String title;
         private final String mapPath;
-        private final int stageLength;
-        private final int hostageSpawnDistance;
-        private final int bossSpawnDistance;
+        private final int minStageLength;
+        private final double hostageSpawnRatio;
+        private final double bossSpawnRatio;
         private final int enemyInterval;
         private final int maxEnemies;
         private final int scoutChance;
@@ -522,9 +472,10 @@ public class GameThread extends Thread {
                             int bossHp, String hostageRewardType) {
             this.title = title;
             this.mapPath = mapPath;
-            this.stageLength = stageLength;
-            this.hostageSpawnDistance = hostageSpawnDistance;
-            this.bossSpawnDistance = bossSpawnDistance;
+            this.minStageLength = Math.max(0, stageLength);
+            int baseStageLength = Math.max(1, stageLength);
+            this.hostageSpawnRatio = clampProgress(hostageSpawnDistance / (double) baseStageLength);
+            this.bossSpawnRatio = clampProgress(bossSpawnDistance / (double) baseStageLength);
             this.enemyInterval = enemyInterval;
             this.maxEnemies = maxEnemies;
             this.scoutChance = scoutChance;
@@ -536,6 +487,25 @@ public class GameThread extends Thread {
             this.scoutHp = scoutHp;
             this.bossHp = bossHp;
             this.hostageRewardType = hostageRewardType;
+        }
+
+        private int resolveHostageSpawnDistance(int activeStageLength) {
+            return scaleDistance(activeStageLength, hostageSpawnRatio);
+        }
+
+        private int resolveBossSpawnDistance(int activeStageLength) {
+            return scaleDistance(activeStageLength, bossSpawnRatio);
+        }
+
+        private static int scaleDistance(int activeStageLength, double ratio) {
+            if (activeStageLength <= 0) {
+                return 0;
+            }
+            return Math.max(0, Math.min(activeStageLength, (int) Math.round(activeStageLength * ratio)));
+        }
+
+        private static double clampProgress(double value) {
+            return Math.max(0.0, Math.min(1.0, value));
         }
     }
 }

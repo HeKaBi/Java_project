@@ -30,7 +30,7 @@ public class GameListener implements KeyListener {
 
     public void handleKeyPressed(int key) {
         if (GameRuntime.waitingStart) {
-            if (!GameRuntime.loadingStart && (key == KeyEvent.VK_ENTER || key == KeyEvent.VK_SPACE)) {
+            if (!GameRuntime.loadingStart && key == KeyEvent.VK_ENTER) {
                 GameRuntime.startRequested = true;
             }
             return;

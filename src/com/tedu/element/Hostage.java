@@ -37,7 +37,8 @@ public class Hostage extends ElementObj {
     @Override
     protected void move() {
         this.setX(this.getX() - GameRuntime.worldScrollX);
-        this.setY(GameRuntime.getBattlefieldMaxBottom() - this.getH());
+        int footX = this.getX() + this.getW() / 2;
+        this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - this.getH());
     }
 
     @Override

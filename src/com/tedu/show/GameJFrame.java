@@ -120,7 +120,6 @@ public class GameJFrame extends JFrame {
         bindKey(component, listener, KeyEvent.VK_L, "l");
         bindKey(component, listener, KeyEvent.VK_U, "u");
         bindKey(component, listener, KeyEvent.VK_CONTROL, "ctrl");
-        bindKey(component, listener, KeyEvent.VK_SPACE, "space");
         bindKey(component, listener, KeyEvent.VK_ENTER, "enter");
         bindKey(component, listener, KeyEvent.VK_1, "1");
         bindKey(component, listener, KeyEvent.VK_2, "2");

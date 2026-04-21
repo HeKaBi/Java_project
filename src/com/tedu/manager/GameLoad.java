@@ -172,7 +172,7 @@ public class GameLoad {
         }
         int spawnX = resolvePlayerSpawnX(play.getW());
         play.setX(spawnX);
-        int groundY = GameRuntime.getBattlefieldMaxBottom() - play.getH();
+        int groundY = GameRuntime.getBattlefieldMaxBottomAt(spawnX + play.getW() / 2) - play.getH();
         play.setY(Math.max(0, groundY));
         em.addElement(play, GameElement.PLAY);
     }
