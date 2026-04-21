@@ -115,12 +115,12 @@ public class GameJFrame extends JFrame {
         bindKey(component, listener, KeyEvent.VK_D, "d");
         bindKey(component, listener, KeyEvent.VK_W, "w");
         bindKey(component, listener, KeyEvent.VK_S, "s");
-        bindKey(component, listener, KeyEvent.VK_I, "i");
+        bindKey(component, listener, KeyEvent.VK_E, "e");
         bindKey(component, listener, KeyEvent.VK_J, "j");
         bindKey(component, listener, KeyEvent.VK_L, "l");
         bindKey(component, listener, KeyEvent.VK_U, "u");
-        bindKey(component, listener, KeyEvent.VK_SHIFT, "shift");
-        bindKey(component, listener, KeyEvent.VK_K, "k");
+        bindKey(component, listener, KeyEvent.VK_CONTROL, "ctrl");
+        bindKey(component, listener, KeyEvent.VK_ENTER, "enter");
         bindKey(component, listener, KeyEvent.VK_1, "1");
         bindKey(component, listener, KeyEvent.VK_2, "2");
         bindKey(component, listener, KeyEvent.VK_NUMPAD1, "num1");
@@ -129,10 +129,17 @@ public class GameJFrame extends JFrame {
     }
 
     private void bindKey(JComponent component, GameListener listener, int keyCode, String actionName) {
+        bindKey(component, listener, keyCode, 0, actionName);
+        if (keyCode != KeyEvent.VK_CONTROL) {
+            bindKey(component, listener, keyCode, KeyEvent.CTRL_DOWN_MASK, actionName + ".ctrl");
+        }
+    }
+
+    private void bindKey(JComponent component, GameListener listener, int keyCode, int modifiers, String actionName) {
         String pressedAction = actionName + ".pressed";
         String releasedAction = actionName + ".released";
         component.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-                .put(KeyStroke.getKeyStroke(keyCode, 0, false), pressedAction);
+                .put(KeyStroke.getKeyStroke(keyCode, modifiers, false), pressedAction);
         component.getActionMap().put(pressedAction, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -140,7 +147,7 @@ public class GameJFrame extends JFrame {
             }
         });
         component.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
-                .put(KeyStroke.getKeyStroke(keyCode, 0, true), releasedAction);
+                .put(KeyStroke.getKeyStroke(keyCode, modifiers, true), releasedAction);
         component.getActionMap().put(releasedAction, new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {

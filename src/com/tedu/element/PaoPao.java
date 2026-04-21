@@ -21,13 +21,19 @@ public class PaoPao extends ElementObj {
     private static final int HITBOX_W = 34;
     private static final int STAND_H = 54;
     private static final int CROUCH_H = 34;
+    private static final int MAX_JUMPS = 2;
     private static final int GROUND_LAYER_OVERLAP = 6;
+    private static final int MAX_HP = 3;
     private static final int CROUCH_LAYER_OVERLAP = 10;
     private static final long INVINCIBLE_WINDOW = 100;
     private static final int MOVE_FRAME_GAP = 6;
     private static final int AIR_FRAME_GAP = 5;
     private static final int SHOOT_FRAME_GAP = 2;
     private static final int KNIFE_FRAME_GAP = 3;
+    private static final int MAX_STEP_UP = 14;
+    private static final int MAX_SNAP_DOWN = 8;
+    private static final int AIR_WALL_MARGIN = 6;
+    private static final int GROUND_PROBE_INSET = 4;
     private static final String PLAYERS_ROOT = "image/images/plays/";
     private static final String LOWER_BODY_ROOT = PLAYERS_ROOT + "\u4e0b\u534a\u8eab/";
     private static final String WEAPON1_UPPER_ROOT = PLAYERS_ROOT + "\u4e0a\u534a\u8eab/\u6b66\u56681/";
@@ -77,14 +83,14 @@ public class PaoPao extends ElementObj {
     private boolean weapon2Unlocked = false;
     private ImageIcon currentUpperFrame = lastFrame(UPPER_ATTACK_W1.select(true));
     private ImageIcon currentLowerFrame = firstFrame(LOWER_STAND.select(true));
-    private int maxHp = 30;
-    private int hp = maxHp;
+    private int hp = MAX_HP;
     private int grenades = 8;
     private long hurtTime = -1000;
-    private int speed = 5;
+    private int speed = 4;
     private double groundBottom = 0;
     private double vy = 0;
     private boolean onGround = true;
+    private int remainingJumps = MAX_JUMPS;
     private final double gravity = 0.75;
     private final double jumpVelocity = -12.8;
     private boolean aimUp;
@@ -95,7 +101,6 @@ public class PaoPao extends ElementObj {
     private boolean right;
     private boolean faceRight = true;
     private boolean firing;
-    private boolean aimFiring;
     private boolean knifeQueued;
     private boolean grenadeQueued;
     private long fireTime = -100;
@@ -105,6 +110,8 @@ public class PaoPao extends ElementObj {
     private long shootAnimUntil = -1;
     private long knifeAnimStart = -1;
     private long knifeAnimUntil = -1;
+    private long knifeHitTime = -1;
+    private boolean knifeHitPending;
 
     @Override
     public void showElement(Graphics g) {
@@ -144,41 +151,56 @@ public class PaoPao extends ElementObj {
         int x = this.getX();
         double y = this.getY();
         int moveSpeed = isGroundCrouching() ? 2 : speed;
+        int horizontalInput = 0;
+        if (left ^ right) {
+            horizontalInput = left ? -moveSpeed : moveSpeed;
+        }
         boolean worldScrolling = GameRuntime.worldScrollX > 0
-                && right
-                && !left
+                && horizontalInput > 0
                 && this.getX() >= getAnchorX()
                 && !isGroundCrouching();
-        groundBottom = clampGroundBottom(groundBottom <= 0 ? this.getY() + this.getH() : groundBottom);
-        if (left) {
-            x -= moveSpeed;
-        }
-        if (right && !worldScrolling) {
-            x += moveSpeed;
+        int nextX = x;
+        GroundTraverseResult groundMove = null;
+        if (horizontalInput != 0 && !worldScrolling) {
+            nextX = clampHorizontalPosition(x + horizontalInput);
+            if (onGround) {
+                groundMove = resolveGroundMove(x, nextX, (int) Math.round(y) + this.getH());
+                nextX = groundMove.x;
+            } else {
+                nextX = resolveAirHorizontalMove(x, nextX, y);
+            }
         }
         if (onGround) {
-            if (up && !down) {
-                groundBottom -= moveSpeed;
-            } else if (down && !up && !crouch) {
-                groundBottom += moveSpeed;
+            int currentBottom = (int) Math.round(y) + this.getH();
+            int nextGroundBottom = groundMove != null
+                    ? groundMove.bottom
+                    : getTerrainBottomAt(resolveSupportX(nextX));
+            boolean shouldLeaveGround = groundMove != null
+                    ? groundMove.leftGround
+                    : nextGroundBottom - currentBottom > MAX_SNAP_DOWN;
+            if (shouldLeaveGround) {
+                onGround = false;
+                if (remainingJumps == MAX_JUMPS) {
+                    remainingJumps = MAX_JUMPS - 1;
+                }
+                vy = Math.max(0.0, vy);
+            } else {
+                groundBottom = nextGroundBottom;
+                y = groundBottom - this.getH();
             }
-            groundBottom = clampGroundBottom(groundBottom);
-            y = groundBottom - this.getH();
-        } else {
+        }
+        if (!onGround) {
             vy += gravity;
             y += vy;
-            double landingY = groundBottom - this.getH();
+            double landingBottom = getTerrainBottomAt(resolveSupportX(nextX));
+            double landingY = landingBottom - this.getH();
             if (y >= landingY) {
                 y = landingY;
                 vy = 0;
                 onGround = true;
+                remainingJumps = MAX_JUMPS;
+                groundBottom = landingBottom;
             }
-        }
-        if (x < 0) {
-            x = 0;
-        }
-        if (x > GameJFrame.GameX - this.getW()) {
-            x = GameJFrame.GameX - this.getW();
         }
         if (y < 0) {
             y = 0;
@@ -186,9 +208,11 @@ public class PaoPao extends ElementObj {
                 vy = 0;
             }
         }
-        this.setX(x);
-        this.setY((int) y);
+        this.setX(nextX);
+        this.setY((int) Math.round(y));
         if (onGround) {
+            groundBottom = getTerrainBottomAt(resolveSupportX(this.getX()));
+        } else {
             groundBottom = this.getY() + this.getH();
         }
     }
@@ -210,16 +234,17 @@ public class PaoPao extends ElementObj {
                 down = bl;
                 break;
             case 87:
-                up = bl;
+                if (bl) {
+                    triggerJump();
+                }
                 break;
-            case 73:
+            case 69:
                 aimUp = bl;
-                aimFiring = bl;
                 break;
             case 83:
                 down = bl;
                 break;
-            case 16:
+            case 17:
                 crouch = bl;
                 break;
             case 39:
@@ -232,11 +257,7 @@ public class PaoPao extends ElementObj {
             case 74:
                 firing = bl;
                 break;
-            case 75:
-                if (bl && onGround) {
-                    onGround = false;
-                    vy = jumpVelocity;
-                }
+            case 32:
                 break;
             case 76:
                 if (bl) {
@@ -273,8 +294,9 @@ public class PaoPao extends ElementObj {
                 knifeTime = gameTime;
                 knifeAnimStart = gameTime;
                 knifeAnimUntil = gameTime + getKnifeAnimationDuration();
+                knifeHitTime = gameTime + getKnifeHitDelay();
+                knifeHitPending = true;
                 AudioPlayer.playOnce("music/knife.wav");
-                performKnifeHit();
             }
         }
         if (grenadeQueued) {
@@ -285,8 +307,11 @@ public class PaoPao extends ElementObj {
                 spawnGrenade();
             }
         }
-        boolean shooting = firing || aimFiring;
-        if (!shooting || gameTime < knifeAnimUntil || gameTime - fireTime < currentWeapon.fireInterval) {
+        if (knifeHitPending && gameTime >= knifeHitTime) {
+            knifeHitPending = false;
+            performKnifeHit();
+        }
+        if (!firing || gameTime < knifeAnimUntil || gameTime - fireTime < currentWeapon.fireInterval) {
             return;
         }
         fireTime = gameTime;
@@ -311,11 +336,16 @@ public class PaoPao extends ElementObj {
             bulletY = muzzle.y - bulletH / 2;
             bulletVx = faceRight ? bulletSpeed : -bulletSpeed;
             bulletVy = 0;
-        } else if (aimUp) {
+        } else if (aimUp && onGround) {
             bulletX = muzzle.x - bulletW / 2;
             bulletY = muzzle.y - bulletH;
             bulletVx = 0;
             bulletVy = -bulletSpeed;
+        } else if (!onGround && aimUp) {
+            bulletX = faceRight ? muzzle.x : muzzle.x - bulletW;
+            bulletY = muzzle.y - bulletH / 2;
+            bulletVx = faceRight ? Math.max(8, bulletSpeed - 3) : -Math.max(8, bulletSpeed - 3);
+            bulletVy = -Math.max(6, bulletSpeed - 5);
         } else {
             bulletX = faceRight ? muzzle.x : muzzle.x - bulletW;
             bulletY = muzzle.y - bulletH / 2;
@@ -337,11 +367,16 @@ public class PaoPao extends ElementObj {
         this.setH(STAND_H);
         this.currentWeapon = WeaponType.RIFLE;
         this.weapon2Unlocked = false;
-        this.maxHp = 30;
-        this.hp = maxHp;
         this.currentUpperFrame = lastFrame(currentWeapon.attack.select(true));
         this.currentLowerFrame = firstFrame(LOWER_STAND.select(true));
         this.groundBottom = this.getY() + this.getH();
+        this.remainingJumps = MAX_JUMPS;
+        this.onGround = true;
+        this.vy = 0;
+        this.knifeAnimStart = -1;
+        this.knifeAnimUntil = -1;
+        this.knifeHitTime = -1;
+        this.knifeHitPending = false;
         ImageIcon representative = currentUpperFrame != null ? currentUpperFrame : currentLowerFrame;
         if (representative != null) {
             this.setIcon(representative);
@@ -354,7 +389,8 @@ public class PaoPao extends ElementObj {
         this.setX(GameLoad.resolvePlayerSpawnX(this.getW()));
         this.onGround = true;
         this.vy = 0;
-        this.groundBottom = GameRuntime.getBattlefieldMaxBottom();
+        this.remainingJumps = MAX_JUMPS;
+        this.groundBottom = getTerrainBottomAt(resolveSupportX(this.getX()));
         this.setY((int) Math.round(groundBottom - this.getH()));
     }
 
@@ -375,27 +411,27 @@ public class PaoPao extends ElementObj {
     }
 
     public int getMaxHp() {
-        return maxHp;
+        return MAX_HP;
     }
 
     public int getGrenades() {
         return grenades;
     }
 
-    public String getWeaponHudLabel() {
-        return currentWeapon.hudLabel;
-    }
-
     public String getWeaponName() {
         return currentWeapon.label;
     }
 
-    public boolean isHeavyWeaponEquipped() {
-        return currentWeapon == WeaponType.HEAVY;
+    public String getWeaponHudLabel() {
+        return currentWeapon == WeaponType.HEAVY ? "HEAVY" : "RIFLE";
     }
 
     public boolean hasWeapon2() {
         return weapon2Unlocked;
+    }
+
+    public boolean isHeavyWeaponEquipped() {
+        return currentWeapon == WeaponType.HEAVY;
     }
 
     public long getHurtTime() {
@@ -433,7 +469,8 @@ public class PaoPao extends ElementObj {
         if (this.getX() < getAnchorX()) {
             return 0;
         }
-        return Math.min(speed, remainingDistance);
+        int scroll = Math.min(speed, remainingDistance);
+        return wouldBlockWorldScroll(scroll) ? 0 : scroll;
     }
 
     @Override
@@ -490,7 +527,7 @@ public class PaoPao extends ElementObj {
             return new FrameSelection(upperFrame, lowerFrame);
         }
         if (isGroundCrouching()) {
-            if ((left ^ right) || (up ^ down)) {
+            if (left ^ right) {
                 lowerFrame = selectLoopFrame(LOWER_CROUCH_RUN.select(faceRight), time, MOVE_FRAME_GAP);
             } else {
                 lowerFrame = firstFrame(LOWER_CROUCH_IDLE.select(faceRight));
@@ -504,7 +541,7 @@ public class PaoPao extends ElementObj {
             }
             return new FrameSelection(upperFrame, lowerFrame);
         }
-        if ((left ^ right) || (up ^ down)) {
+        if (left ^ right) {
             lowerFrame = selectLoopFrame(LOWER_RUN.select(faceRight), time, MOVE_FRAME_GAP);
         } else {
             lowerFrame = firstFrame(LOWER_STAND.select(faceRight));
@@ -596,7 +633,7 @@ public class PaoPao extends ElementObj {
     }
 
     private Point resolveBulletOrigin() {
-        if (aimUp) {
+        if (aimUp && onGround) {
             ImageIcon upper = firstFrame(currentWeapon.aimUp.select(faceRight));
             ImageIcon lower = currentLowerFrame != null ? currentLowerFrame : firstFrame(LOWER_STAND.select(faceRight));
             SpritePose pose = buildPose(upper, lower, false, false);
@@ -763,12 +800,14 @@ public class PaoPao extends ElementObj {
         return Math.max(1, UPPER_KNIFE.select(faceRight).size()) * KNIFE_FRAME_GAP;
     }
 
+    private long getKnifeHitDelay() {
+        long animationDuration = getKnifeAnimationDuration();
+        long strikeDelay = KNIFE_FRAME_GAP * 2L;
+        return Math.max(1L, Math.min(animationDuration - 1, strikeDelay));
+    }
+
     private void performKnifeHit() {
-        int attackWidth = 72;
-        int attackHeight = isGroundCrouching() ? this.getH() : this.getH() + 8;
-        int attackX = faceRight ? this.getX() + this.getW() - 4 : this.getX() - attackWidth + 4;
-        int attackY = this.getY() - (isGroundCrouching() ? 0 : 4);
-        Rectangle knifeRect = new Rectangle(attackX, attackY, attackWidth, attackHeight);
+        Rectangle knifeRect = resolveKnifeHitbox();
         List<ElementObj> enemys = em.getElementsByKey(GameElement.ENEMY);
         for (ElementObj enemyObj : enemys) {
             if (!enemyObj.isLive() || !knifeRect.intersects(enemyObj.getRectangle())) {
@@ -795,6 +834,56 @@ public class PaoPao extends ElementObj {
         }
     }
 
+    private Rectangle resolveKnifeHitbox() {
+        ImageIcon knifeFrame = getKnifeStrikeFrame();
+        if (knifeFrame == null) {
+            int fallbackWidth = isGroundCrouching() ? 88 : 104;
+            int fallbackHeight = Math.max(48, this.getH() + 12);
+            int fallbackX = faceRight ? this.getCenterX() - 4 : this.getCenterX() - fallbackWidth + 4;
+            int fallbackY = this.getY() - 6;
+            return new Rectangle(fallbackX, fallbackY, fallbackWidth, fallbackHeight);
+        }
+        ImageIcon lowerFrame = resolveKnifeLowerFrame();
+        SpritePose pose = buildPose(knifeFrame, lowerFrame, false, true);
+        Rectangle swingRect = new Rectangle(
+                pose.upperX,
+                pose.upperY,
+                knifeFrame.getIconWidth(),
+                knifeFrame.getIconHeight());
+        int reachWidth = Math.max(44, knifeFrame.getIconWidth() / 2);
+        int reachHeight = Math.max(this.getH() + 12, knifeFrame.getIconHeight());
+        int reachY = pose.upperY + Math.max(0, knifeFrame.getIconHeight() / 10 - 2);
+        Rectangle reachRect;
+        if (faceRight) {
+            int reachX = pose.upperX + knifeFrame.getIconWidth() / 2 - 6;
+            reachRect = new Rectangle(reachX, reachY, reachWidth + 12, reachHeight);
+        } else {
+            int reachX = pose.upperX - reachWidth - 6;
+            reachRect = new Rectangle(reachX, reachY, reachWidth + 12, reachHeight);
+        }
+        swingRect.add(reachRect);
+        return swingRect;
+    }
+
+    private ImageIcon getKnifeStrikeFrame() {
+        List<ImageIcon> knifeFrames = UPPER_KNIFE.select(faceRight);
+        if (knifeFrames == null || knifeFrames.isEmpty()) {
+            return null;
+        }
+        int strikeIndex = Math.min(knifeFrames.size() - 1, 3);
+        return knifeFrames.get(strikeIndex);
+    }
+
+    private ImageIcon resolveKnifeLowerFrame() {
+        if (!onGround) {
+            return firstFrame(LOWER_JUMP.select(faceRight));
+        }
+        if (isGroundCrouching()) {
+            return firstFrame(LOWER_CROUCH_IDLE.select(faceRight));
+        }
+        return firstFrame(LOWER_STAND.select(faceRight));
+    }
+
     private void spawnGrenade() {
         int grenadeX = faceRight ? this.getX() + this.getW() / 2 : this.getX() - 8;
         int grenadeY = this.getY() + Math.max(4, this.getH() / 2);
@@ -816,8 +905,119 @@ public class PaoPao extends ElementObj {
         return Math.max(220, GameJFrame.GameX / 2 - this.getW() / 2);
     }
 
-    private double clampGroundBottom(double targetBottom) {
-        return GameRuntime.clampBattlefieldBottom((int) Math.round(targetBottom));
+    private void triggerJump() {
+        if (remainingJumps <= 0) {
+            return;
+        }
+        onGround = false;
+        remainingJumps--;
+        vy = jumpVelocity;
+    }
+
+    private int getTerrainBottomAt(int footX) {
+        return GameRuntime.getBattlefieldMaxBottomAt(footX);
+    }
+
+    private int clampHorizontalPosition(int targetX) {
+        if (targetX < 0) {
+            return 0;
+        }
+        int maxX = GameJFrame.GameX - this.getW();
+        if (targetX > maxX) {
+            return maxX;
+        }
+        return targetX;
+    }
+
+    private int resolveAirHorizontalMove(int currentX, int desiredX, double currentY) {
+        if (desiredX == currentX) {
+            return currentX;
+        }
+        int step = desiredX > currentX ? 1 : -1;
+        int resolvedX = currentX;
+        int actorBottom = (int) Math.round(currentY) + this.getH();
+        for (int candidateX = currentX + step; candidateX != desiredX + step; candidateX += step) {
+            if (isWallBlockedAt(candidateX, actorBottom, step > 0)) {
+                break;
+            }
+            resolvedX = candidateX;
+        }
+        return resolvedX;
+    }
+
+    private GroundTraverseResult resolveGroundMove(int currentX, int desiredX, int currentBottom) {
+        if (desiredX == currentX) {
+            return new GroundTraverseResult(currentX, currentBottom, false);
+        }
+        int step = desiredX > currentX ? 1 : -1;
+        int resolvedX = currentX;
+        int resolvedBottom = currentBottom;
+        for (int candidateX = currentX + step; candidateX != desiredX + step; candidateX += step) {
+            int candidateBottom = getTerrainBottomAt(resolveSupportX(candidateX));
+            if (isGroundStepBlocked(resolvedBottom, candidateBottom)) {
+                break;
+            }
+            resolvedX = candidateX;
+            if (candidateBottom - resolvedBottom > MAX_SNAP_DOWN) {
+                return new GroundTraverseResult(resolvedX, resolvedBottom, true);
+            }
+            resolvedBottom = candidateBottom;
+        }
+        return new GroundTraverseResult(resolvedX, resolvedBottom, false);
+    }
+
+    private boolean isWallBlockedAt(int candidateX, int actorBottom, boolean movingRight) {
+        int frontSurface = getTerrainBottomAt(resolveFrontX(candidateX, movingRight));
+        if (!onGround) {
+            return actorBottom > frontSurface - AIR_WALL_MARGIN;
+        }
+        return actorBottom - frontSurface > MAX_STEP_UP;
+    }
+
+    private boolean isGroundStepBlocked(int currentBottom, int candidateBottom) {
+        return currentBottom - candidateBottom > MAX_STEP_UP;
+    }
+
+    private boolean wouldBlockWorldScroll(int scroll) {
+        if (scroll <= 0) {
+            return false;
+        }
+        int actorBottom = this.getY() + this.getH();
+        if (!onGround) {
+            int futureFrontX = resolveFrontX(this.getX(), true) + scroll;
+            int futureFrontSurface = getTerrainBottomAt(futureFrontX);
+            return actorBottom > futureFrontSurface - AIR_WALL_MARGIN;
+        }
+        boolean grounded = true;
+        int simulatedBottom = actorBottom;
+        for (int delta = 1; delta <= scroll; delta++) {
+            int candidateX = this.getX() + delta;
+            if (grounded) {
+                int candidateBottom = getTerrainBottomAt(resolveSupportX(candidateX));
+                if (isGroundStepBlocked(simulatedBottom, candidateBottom)) {
+                    return true;
+                }
+                if (candidateBottom - simulatedBottom > MAX_SNAP_DOWN) {
+                    grounded = false;
+                    continue;
+                }
+                simulatedBottom = candidateBottom;
+                continue;
+            }
+            int futureFrontSurface = getTerrainBottomAt(resolveFrontX(candidateX, true));
+            if (actorBottom > futureFrontSurface - AIR_WALL_MARGIN) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private int resolveSupportX(int baseX) {
+        return baseX + this.getW() / 2;
+    }
+
+    private int resolveFrontX(int baseX, boolean movingRight) {
+        return baseX + (movingRight ? this.getW() - GROUND_PROBE_INSET : GROUND_PROBE_INSET);
     }
 
     private String resolvePlayerBulletPath() {
@@ -825,11 +1025,10 @@ public class PaoPao extends ElementObj {
     }
 
     private enum WeaponType {
-        RIFLE("步枪", "RIFLE", UPPER_AIM_UP_W1, UPPER_ATTACK_W1, PLAYER_BULLET_LEFT, PLAYER_BULLET_RIGHT, 6, 1, 14),
-        HEAVY("重机枪", "HEAVY", UPPER_AIM_UP_W2, UPPER_ATTACK_W2, PLAYER_HEAVY_BULLET_LEFT, PLAYER_HEAVY_BULLET_RIGHT, 10, 2, 18);
+        RIFLE("步枪", UPPER_AIM_UP_W1, UPPER_ATTACK_W1, PLAYER_BULLET_LEFT, PLAYER_BULLET_RIGHT, 6, 1, 14),
+        HEAVY("重机枪", UPPER_AIM_UP_W2, UPPER_ATTACK_W2, PLAYER_HEAVY_BULLET_LEFT, PLAYER_HEAVY_BULLET_RIGHT, 10, 2, 18);
 
         private final String label;
-        private final String hudLabel;
         private final DirectionalFrames aimUp;
         private final DirectionalFrames attack;
         private final String leftBullet;
@@ -838,10 +1037,9 @@ public class PaoPao extends ElementObj {
         private final int damage;
         private final int bulletSpeed;
 
-        WeaponType(String label, String hudLabel, DirectionalFrames aimUp, DirectionalFrames attack,
+        WeaponType(String label, DirectionalFrames aimUp, DirectionalFrames attack,
                    String leftBullet, String rightBullet, int fireInterval, int damage, int bulletSpeed) {
             this.label = label;
-            this.hudLabel = hudLabel;
             this.aimUp = aimUp;
             this.attack = attack;
             this.leftBullet = leftBullet;
@@ -873,6 +1071,18 @@ public class PaoPao extends ElementObj {
         private FrameSelection(ImageIcon upper, ImageIcon lower) {
             this.upper = upper;
             this.lower = lower;
+        }
+    }
+
+    private static final class GroundTraverseResult {
+        private final int x;
+        private final int bottom;
+        private final boolean leftGround;
+
+        private GroundTraverseResult(int x, int bottom, boolean leftGround) {
+            this.x = x;
+            this.bottom = bottom;
+            this.leftGround = leftGround;
         }
     }
 

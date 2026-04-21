@@ -40,7 +40,7 @@ public class Grenade extends ElementObj {
         this.setX((int) Math.round(this.getX() + vx - GameRuntime.worldScrollX));
         this.setY((int) Math.round(this.getY() + vy));
         vy += gravity;
-        int groundY = GameJFrame.GameY - this.getH() - GameRuntime.FLOOR_MARGIN;
+        int groundY = GameRuntime.getBattlefieldMaxBottomAt(this.getCenterX()) - this.getH();
         if (this.getY() >= groundY) {
             this.setY(groundY);
             explode();
