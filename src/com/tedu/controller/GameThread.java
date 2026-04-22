@@ -6,7 +6,9 @@ import com.tedu.element.Enemy;
 import com.tedu.element.EnemyBullet;
 import com.tedu.element.Grenade;
 import com.tedu.element.Hostage;
+import com.tedu.element.MapObj;
 import com.tedu.element.PaoPao;
+import com.tedu.element.PlatformObj;
 import com.tedu.element.ScoutEnemy;
 import com.tedu.element.SupplyItem;
 import com.tedu.manager.AudioPlayer;
@@ -20,8 +22,8 @@ import java.util.Map;
 import java.util.Random;
 
 public class GameThread extends Thread {
-    private static final String STAGE_ONE_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
-    private static final String STAGE_TWO_MAP_PATH = "image/images/\u80cc\u666f/map3.png";
+    private static final String STAGE_ONE_MAP_PATH = "image/images/\u80cc\u666f/mission1.png";
+    private static final String STAGE_TWO_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
     private static final String[] ENEMY_TYPES = {"enemy1", "enemy2", "enemy3", "enemy4"};
     private static final StageConfig[] STAGES = {
             new StageConfig("STAGE 1", STAGE_ONE_MAP_PATH,
@@ -123,12 +125,27 @@ public class GameThread extends Thread {
         }
         ElementObj mapA = mapAObj.createElement("0,0," + stage.mapPath);
         em.addElement(mapA, GameElement.MAPS);
+        loadSupplementalPlatforms(stage, mapA);
         int actualScrollLength = Math.max(0, mapA.getW() - GameJFrame.GameX);
         return Math.max(stage.minStageLength, actualScrollLength);
     }
 
+    private void loadSupplementalPlatforms(StageConfig stage, ElementObj map) {
+        List<int[]> platforms = MapObj.buildSupplementalPlatforms(stage.mapPath,
+                map.getX(), map.getY(), map.getW(), map.getH());
+        for (int[] platform : platforms) {
+            if (platform == null || platform.length < 4) {
+                continue;
+            }
+            ElementObj platformObj = new PlatformObj().createElement(
+                    platform[0] + "," + platform[1] + "," + platform[2] + "," + platform[3]);
+            em.addElement(platformObj, GameElement.PLATFORM);
+        }
+    }
+
     private void clearStageElements() {
         clearElements(GameElement.MAPS);
+        clearElements(GameElement.PLATFORM);
         clearElements(GameElement.ENEMY);
         clearElements(GameElement.BOSS);
         clearElements(GameElement.HOSTAGE);

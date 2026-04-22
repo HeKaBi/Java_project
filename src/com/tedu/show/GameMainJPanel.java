@@ -142,7 +142,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
                 centerX + 4, titleY + 36,
                 START_ACTION_FONT, accentColor, new Color(19, 14, 22, 90), 1);
         drawCenteredShadowedText(g2,
-                loadingStart ? "Loading terrain and mission units" : "A/D move   W double jump   E aim up   Ctrl crouch",
+                loadingStart ? "Loading terrain and mission units" : "A/D move   W double jump   E aim up   S/Down/Ctrl crouch",
                 centerX + 4, titleY + 62, START_INFO_FONT,
                 new Color(230, 238, 244, loadingStart ? 230 : 210), new Color(8, 10, 18, 110), 1);
         drawAccentLine(g2, centerX, titleY + 76, 132 + pulse, accentColor);
@@ -210,6 +210,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
     private void drawEffects(Graphics g, Map<GameElement, List<ElementObj>> all) {
         for (GameElement ge : GameElement.values()) {
             if (ge == GameElement.MAPS
+                    || ge == GameElement.PLATFORM
                     || ge == GameElement.PLAY
                     || ge == GameElement.ENEMY
                     || ge == GameElement.BOSS

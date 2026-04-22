@@ -131,6 +131,15 @@ public class GameRuntime {
         return clampAllowedBottom(terrain.resolveBottom(screenX));
     }
 
+    public static int getBattlefieldWallTopBottomAt(int screenX) {
+        TerrainState terrain = terrainState;
+        if (terrain == null || terrain.wallTopBottomByX == null || terrain.wallTopBottomByX.length == 0) {
+            return -1;
+        }
+        int value = terrain.resolveWallTopBottom(screenX);
+        return value <= 0 ? -1 : clampAllowedBottom(value);
+    }
+
     public static int getBattlefieldMinBottomAt(int screenX) {
         return getBattlefieldMaxBottomAt(screenX) - BATTLEFIELD_DEPTH;
     }
@@ -155,7 +164,16 @@ public class GameRuntime {
             terrainState = null;
             return;
         }
-        terrainState = new TerrainState(maxBottomByX.clone(), mapScreenX, Math.max(1, mapScreenWidth));
+        terrainState = new TerrainState(maxBottomByX.clone(), null, mapScreenX, Math.max(1, mapScreenWidth));
+    }
+
+    public static void setBattlefieldTerrain(int[] maxBottomByX, int[] wallTopBottomByX, int mapScreenX, int mapScreenWidth) {
+        if (maxBottomByX == null || maxBottomByX.length == 0) {
+            terrainState = null;
+            return;
+        }
+        int[] wall = (wallTopBottomByX == null || wallTopBottomByX.length == 0) ? null : wallTopBottomByX.clone();
+        terrainState = new TerrainState(maxBottomByX.clone(), wall, mapScreenX, Math.max(1, mapScreenWidth));
     }
 
     public static void updateBattlefieldTerrainViewport(int mapScreenX, int mapScreenWidth) {
@@ -175,11 +193,13 @@ public class GameRuntime {
 
     private static final class TerrainState {
         private final int[] maxBottomByX;
+        private final int[] wallTopBottomByX;
         private volatile int mapScreenX;
         private volatile int mapScreenWidth;
 
-        private TerrainState(int[] maxBottomByX, int mapScreenX, int mapScreenWidth) {
+        private TerrainState(int[] maxBottomByX, int[] wallTopBottomByX, int mapScreenX, int mapScreenWidth) {
             this.maxBottomByX = maxBottomByX;
+            this.wallTopBottomByX = wallTopBottomByX;
             this.mapScreenX = mapScreenX;
             this.mapScreenWidth = mapScreenWidth;
         }
@@ -197,6 +217,34 @@ public class GameRuntime {
             double ratio = position - leftIndex;
             return (int) Math.round(maxBottomByX[leftIndex]
                     + (maxBottomByX[rightIndex] - maxBottomByX[leftIndex]) * ratio);
+        }
+
+        private int resolveWallTopBottom(int screenX) {
+            if (wallTopBottomByX == null || wallTopBottomByX.length == 0) {
+                return -1;
+            }
+            if (wallTopBottomByX.length == 1) {
+                return wallTopBottomByX[0];
+            }
+            double position = resolveProfilePosition(screenX);
+            int leftIndex = (int) Math.floor(position);
+            int rightIndex = Math.min(wallTopBottomByX.length - 1, leftIndex + 1);
+            if (leftIndex >= rightIndex) {
+                return wallTopBottomByX[Math.max(0, Math.min(wallTopBottomByX.length - 1, leftIndex))];
+            }
+            int leftValue = wallTopBottomByX[leftIndex];
+            int rightValue = wallTopBottomByX[rightIndex];
+            if (leftValue <= 0 && rightValue <= 0) {
+                return -1;
+            }
+            if (leftValue <= 0) {
+                return rightValue;
+            }
+            if (rightValue <= 0) {
+                return leftValue;
+            }
+            double ratio = position - leftIndex;
+            return (int) Math.round(leftValue + (rightValue - leftValue) * ratio);
         }
 
         private double resolveProfilePosition(int screenX) {

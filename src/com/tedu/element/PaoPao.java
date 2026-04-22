@@ -23,7 +23,7 @@ public class PaoPao extends ElementObj {
     private static final int CROUCH_H = 34;
     private static final int MAX_JUMPS = 2;
     private static final int GROUND_LAYER_OVERLAP = 6;
-    private static final int MAX_HP = 100;
+    private static final int MAX_HP = 30;
     private static final int CROUCH_LAYER_OVERLAP = 10;
     private static final long INVINCIBLE_WINDOW = 100;
     private static final int MOVE_FRAME_GAP = 6;
@@ -34,6 +34,9 @@ public class PaoPao extends ElementObj {
     private static final int MAX_SNAP_DOWN = 8;
     private static final int AIR_WALL_MARGIN = 6;
     private static final int GROUND_PROBE_INSET = 4;
+    private static final int PLATFORM_EDGE_MARGIN = 6;
+    private static final int PLATFORM_LAND_TOLERANCE = 4;
+    private static final int WALL_BODY_MARGIN = 4;
     private static final String PLAYERS_ROOT = "image/images/plays/";
     private static final String LOWER_BODY_ROOT = PLAYERS_ROOT + "\u4e0b\u534a\u8eab/";
     private static final String WEAPON1_UPPER_ROOT = PLAYERS_ROOT + "\u4e0a\u534a\u8eab/\u6b66\u56681/";
@@ -103,6 +106,8 @@ public class PaoPao extends ElementObj {
     private boolean firing;
     private boolean knifeQueued;
     private boolean grenadeQueued;
+    private boolean standingOnPlatform;
+    private boolean jumpedFromPlatform;
     private long fireTime = -100;
     private long knifeTime = -100;
     private long grenadeTime = -100;
@@ -174,11 +179,13 @@ public class PaoPao extends ElementObj {
             int currentBottom = (int) Math.round(y) + this.getH();
             int nextGroundBottom = groundMove != null
                     ? groundMove.bottom
-                    : getTerrainBottomAt(resolveSupportX(nextX));
+                    : getGroundSupportBottomAt(resolveSupportX(nextX), currentBottom);
             boolean shouldLeaveGround = groundMove != null
                     ? groundMove.leftGround
                     : nextGroundBottom - currentBottom > MAX_SNAP_DOWN;
             if (shouldLeaveGround) {
+                jumpedFromPlatform = standingOnPlatform;
+                standingOnPlatform = false;
                 onGround = false;
                 if (remainingJumps == MAX_JUMPS) {
                     remainingJumps = MAX_JUMPS - 1;
@@ -190,9 +197,11 @@ public class PaoPao extends ElementObj {
             }
         }
         if (!onGround) {
+            int previousBottom = (int) Math.round(y) + this.getH();
             vy += gravity;
             y += vy;
-            double landingBottom = getTerrainBottomAt(resolveSupportX(nextX));
+            double landingBottom = findLandingBottom(resolveSupportX(nextX), previousBottom,
+                    (int) Math.round(y) + this.getH());
             double landingY = landingBottom - this.getH();
             if (y >= landingY) {
                 y = landingY;
@@ -200,6 +209,7 @@ public class PaoPao extends ElementObj {
                 onGround = true;
                 remainingJumps = MAX_JUMPS;
                 groundBottom = landingBottom;
+                jumpedFromPlatform = false;
             }
         }
         if (y < 0) {
@@ -211,9 +221,15 @@ public class PaoPao extends ElementObj {
         this.setX(nextX);
         this.setY((int) Math.round(y));
         if (onGround) {
-            groundBottom = getTerrainBottomAt(resolveSupportX(this.getX()));
+            int currentBottom = this.getY() + this.getH();
+            int supportX = resolveSupportX(this.getX());
+            standingOnPlatform = isStandingOnPlatform(supportX, currentBottom);
+            groundBottom = standingOnPlatform
+                    ? getWalkSupportBottomAt(supportX, currentBottom)
+                    : getTerrainBottomAt(supportX);
         } else {
             groundBottom = this.getY() + this.getH();
+            standingOnPlatform = false;
         }
     }
 
@@ -392,6 +408,8 @@ public class PaoPao extends ElementObj {
         this.remainingJumps = MAX_JUMPS;
         this.groundBottom = getTerrainBottomAt(resolveSupportX(this.getX()));
         this.setY((int) Math.round(groundBottom - this.getH()));
+        this.standingOnPlatform = isStandingOnPlatform(resolveSupportX(this.getX()), (int) Math.round(this.groundBottom));
+        this.jumpedFromPlatform = false;
     }
 
     public void hurt(long gameTime, int damage) {
@@ -481,7 +499,7 @@ public class PaoPao extends ElementObj {
     }
 
     private boolean isGroundCrouching() {
-        return onGround && crouch;
+        return onGround && (crouch || down);
     }
 
     private boolean isShootAnimating(long time) {
@@ -528,7 +546,11 @@ public class PaoPao extends ElementObj {
         }
         if (isGroundCrouching()) {
             if (left ^ right) {
-                lowerFrame = selectLoopFrame(LOWER_CROUCH_RUN.select(faceRight), time, MOVE_FRAME_GAP);
+                List<ImageIcon> crouchRunFrames = LOWER_CROUCH_RUN.select(faceRight);
+                if (crouchRunFrames == null || crouchRunFrames.isEmpty()) {
+                    crouchRunFrames = LOWER_RUN.select(faceRight);
+                }
+                lowerFrame = selectLoopFrame(crouchRunFrames, time, MOVE_FRAME_GAP);
             } else {
                 lowerFrame = firstFrame(LOWER_CROUCH_IDLE.select(faceRight));
             }
@@ -909,6 +931,8 @@ public class PaoPao extends ElementObj {
         if (remainingJumps <= 0) {
             return;
         }
+        jumpedFromPlatform = standingOnPlatform;
+        standingOnPlatform = false;
         onGround = false;
         remainingJumps--;
         vy = jumpVelocity;
@@ -916,6 +940,98 @@ public class PaoPao extends ElementObj {
 
     private int getTerrainBottomAt(int footX) {
         return GameRuntime.getBattlefieldMaxBottomAt(footX);
+    }
+
+    private int getGroundSupportBottomAt(int footX, int referenceBottom) {
+        if (isStandingOnPlatform(footX, referenceBottom)) {
+            return getWalkSupportBottomAt(footX, referenceBottom);
+        }
+        return getTerrainBottomAt(footX);
+    }
+
+    private int getWalkSupportBottomAt(int footX, int referenceBottom) {
+        int bestBottom = getTerrainBottomAt(footX);
+        List<ElementObj> platforms = em.getElementsByKey(GameElement.PLATFORM);
+        for (ElementObj elementObj : platforms) {
+            if (!(elementObj instanceof PlatformObj)) {
+                continue;
+            }
+            PlatformObj platform = (PlatformObj) elementObj;
+            if (!platform.isLive() || !isWithinPlatformSpan(platform, footX)) {
+                continue;
+            }
+            int platformBottom = platform.getTopSurfaceY();
+            if (referenceBottom - platformBottom > MAX_STEP_UP) {
+                continue;
+            }
+            if (platformBottom - referenceBottom > MAX_SNAP_DOWN) {
+                continue;
+            }
+            if (platformBottom < bestBottom) {
+                bestBottom = platformBottom;
+            }
+        }
+        return bestBottom;
+    }
+
+    private int findLandingBottom(int footX, int previousBottom, int nextBottom) {
+        int bestBottom = Integer.MAX_VALUE;
+        int terrainBottom = getTerrainBottomAt(footX);
+        if (nextBottom >= terrainBottom) {
+            bestBottom = terrainBottom;
+        }
+        List<ElementObj> platforms = em.getElementsByKey(GameElement.PLATFORM);
+        for (ElementObj elementObj : platforms) {
+            if (!(elementObj instanceof PlatformObj)) {
+                continue;
+            }
+            PlatformObj platform = (PlatformObj) elementObj;
+            if (!platform.isLive() || !isWithinPlatformSpan(platform, footX)) {
+                continue;
+            }
+            int platformBottom = platform.getTopSurfaceY();
+            if (previousBottom > platformBottom + PLATFORM_LAND_TOLERANCE) {
+                continue;
+            }
+            if (nextBottom < platformBottom) {
+                continue;
+            }
+            if (platformBottom < bestBottom) {
+                bestBottom = platformBottom;
+            }
+        }
+        return bestBottom == Integer.MAX_VALUE ? terrainBottom : bestBottom;
+    }
+
+    private boolean isWithinPlatformSpan(PlatformObj platform, int footX) {
+        int margin = resolvePlatformEdgeMargin(platform);
+        return footX >= platform.getX() + margin
+                && footX <= platform.getX() + platform.getW() - margin;
+    }
+
+    private int resolvePlatformEdgeMargin(PlatformObj platform) {
+        return Math.min(PLATFORM_EDGE_MARGIN, Math.max(0, platform.getW() / 3));
+    }
+
+    private boolean isStandingOnPlatform(int footX, int supportBottom) {
+        int terrainBottom = getTerrainBottomAt(footX);
+        if (supportBottom >= terrainBottom - 1) {
+            return false;
+        }
+        List<ElementObj> platforms = em.getElementsByKey(GameElement.PLATFORM);
+        for (ElementObj elementObj : platforms) {
+            if (!(elementObj instanceof PlatformObj)) {
+                continue;
+            }
+            PlatformObj platform = (PlatformObj) elementObj;
+            if (!platform.isLive() || !isWithinPlatformSpan(platform, footX)) {
+                continue;
+            }
+            if (Math.abs(platform.getTopSurfaceY() - supportBottom) <= 2) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private int clampHorizontalPosition(int targetX) {
@@ -953,7 +1069,10 @@ public class PaoPao extends ElementObj {
         int resolvedX = currentX;
         int resolvedBottom = currentBottom;
         for (int candidateX = currentX + step; candidateX != desiredX + step; candidateX += step) {
-            int candidateBottom = getTerrainBottomAt(resolveSupportX(candidateX));
+            if (isWallBlockedAt(candidateX, resolvedBottom, step > 0)) {
+                break;
+            }
+            int candidateBottom = getGroundSupportBottomAt(resolveSupportX(candidateX), resolvedBottom);
             if (isGroundStepBlocked(resolvedBottom, candidateBottom)) {
                 break;
             }
@@ -967,11 +1086,24 @@ public class PaoPao extends ElementObj {
     }
 
     private boolean isWallBlockedAt(int candidateX, int actorBottom, boolean movingRight) {
-        int frontSurface = getTerrainBottomAt(resolveFrontX(candidateX, movingRight));
-        if (!onGround) {
+        return isWallBlockedAt(candidateX, actorBottom, movingRight, onGround);
+    }
+
+    private boolean isWallBlockedAt(int candidateX, int actorBottom, boolean movingRight, boolean treatAsGrounded) {
+        int frontX = resolveFrontX(candidateX, movingRight);
+        int wallTopBottom = GameRuntime.getBattlefieldWallTopBottomAt(frontX);
+        int frontSurface = getTerrainBottomAt(frontX);
+        if (wallTopBottom > 0) {
+            // Wall should block walking unless the player is above the wall top (jumping over).
+            if (!treatAsGrounded) {
+                return actorBottom > wallTopBottom - AIR_WALL_MARGIN;
+            }
+            return actorBottom > wallTopBottom - WALL_BODY_MARGIN;
+        }
+        if (!treatAsGrounded) {
             return actorBottom > frontSurface - AIR_WALL_MARGIN;
         }
-        return actorBottom - frontSurface > MAX_STEP_UP;
+        return actorBottom - frontSurface > WALL_BODY_MARGIN;
     }
 
     private boolean isGroundStepBlocked(int currentBottom, int candidateBottom) {
@@ -984,16 +1116,24 @@ public class PaoPao extends ElementObj {
         }
         int actorBottom = this.getY() + this.getH();
         if (!onGround) {
-            int futureFrontX = resolveFrontX(this.getX(), true) + scroll;
-            int futureFrontSurface = getTerrainBottomAt(futureFrontX);
-            return actorBottom > futureFrontSurface - AIR_WALL_MARGIN;
+            for (int delta = 1; delta <= scroll; delta++) {
+                int candidateX = this.getX() + delta;
+                if (isWallBlockedAt(candidateX, actorBottom, true, false)) {
+                    return true;
+                }
+            }
+            return false;
         }
         boolean grounded = true;
         int simulatedBottom = actorBottom;
         for (int delta = 1; delta <= scroll; delta++) {
             int candidateX = this.getX() + delta;
+            int collisionBottom = grounded ? simulatedBottom : actorBottom;
+            if (isWallBlockedAt(candidateX, collisionBottom, true, grounded)) {
+                return true;
+            }
             if (grounded) {
-                int candidateBottom = getTerrainBottomAt(resolveSupportX(candidateX));
+                int candidateBottom = getGroundSupportBottomAt(resolveSupportX(candidateX), simulatedBottom);
                 if (isGroundStepBlocked(simulatedBottom, candidateBottom)) {
                     return true;
                 }
@@ -1002,11 +1142,6 @@ public class PaoPao extends ElementObj {
                     continue;
                 }
                 simulatedBottom = candidateBottom;
-                continue;
-            }
-            int futureFrontSurface = getTerrainBottomAt(resolveFrontX(candidateX, true));
-            if (actorBottom > futureFrontSurface - AIR_WALL_MARGIN) {
-                return true;
             }
         }
         return false;

@@ -14,7 +14,10 @@ public class ScoutEnemy extends ElementObj {
     private static final int HITBOX_W = 48;
     private static final int HITBOX_H = 72;
     private static final int MAX_STEP_UP = 12;
+    private static final int MAX_SNAP_DOWN = 8;
     private static final int GROUND_PROBE_INSET = 5;
+    private static final int PLATFORM_EDGE_MARGIN = 6;
+    private static final int WALL_BODY_MARGIN = 4;
     private static final List<ImageIcon> RUN_FRAMES =
             GameLoad.loadFramesFromDirectory("image/images/Enemy/R/sca");
 
@@ -36,16 +39,18 @@ public class ScoutEnemy extends ElementObj {
         int drawH = frame.getIconHeight();
         int drawX = this.getX() + (this.getW() - drawW) / 2;
         int drawY = this.getY() + this.getH() - drawH;
+        // Scout source frames are authored facing left; flip only when logically facing right.
         if (faceRight) {
-            g.drawImage(frame.getImage(), drawX, drawY, drawW, drawH, null);
-        } else {
             g.drawImage(frame.getImage(), drawX + drawW, drawY, -drawW, drawH, null);
+        } else {
+            g.drawImage(frame.getImage(), drawX, drawY, drawW, drawH, null);
         }
     }
 
     @Override
     protected void move() {
         int x = this.getX() - GameRuntime.worldScrollX;
+        int currentBottom = this.getY() + this.getH();
         ElementObj player = getPlayer();
         if (player != null) {
             int dx = player.getCenterX() - this.getCenterX();
@@ -57,7 +62,7 @@ public class ScoutEnemy extends ElementObj {
         }
         int footX = x + this.getW() / 2;
         this.setX(x);
-        this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - this.getH());
+        this.setY(getWalkSupportBottomAt(footX, currentBottom) - this.getH());
         if (this.getX() + this.getW() < -120 || this.getX() > GameJFrame.GameX + 160) {
             this.setLive(false);
         }
@@ -78,7 +83,7 @@ public class ScoutEnemy extends ElementObj {
         this.setW(HITBOX_W);
         this.setH(HITBOX_H);
         int footX = this.getX() + HITBOX_W / 2;
-        this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - HITBOX_H);
+        this.setY(getWalkSupportBottomAt(footX, GameRuntime.getBattlefieldMaxBottomAt(footX)) - HITBOX_H);
         if (split.length > 2) {
             this.speed = Integer.parseInt(split[2]);
         }
@@ -130,12 +135,55 @@ public class ScoutEnemy extends ElementObj {
         int actorBottom = this.getY() + this.getH();
         for (int candidateX = currentX + step; candidateX != desiredX + step; candidateX += step) {
             int frontX = candidateX + (step > 0 ? this.getW() - GROUND_PROBE_INSET : GROUND_PROBE_INSET);
-            int frontSurface = GameRuntime.getBattlefieldMaxBottomAt(frontX);
+            int wallTopBottom = GameRuntime.getBattlefieldWallTopBottomAt(frontX);
+            if (wallTopBottom > 0 && actorBottom > wallTopBottom - WALL_BODY_MARGIN) {
+                break;
+            }
+            int frontSurface = getWalkSupportBottomAt(frontX, actorBottom);
             if (actorBottom - frontSurface > MAX_STEP_UP) {
                 break;
             }
+            if (frontSurface - actorBottom > MAX_SNAP_DOWN) {
+                break;
+            }
             resolvedX = candidateX;
+            actorBottom = frontSurface;
         }
         return resolvedX;
+    }
+
+    private int getWalkSupportBottomAt(int footX, int referenceBottom) {
+        int bestBottom = GameRuntime.getBattlefieldMaxBottomAt(footX);
+        List<ElementObj> platforms = em.getElementsByKey(GameElement.PLATFORM);
+        for (ElementObj elementObj : platforms) {
+            if (!(elementObj instanceof PlatformObj)) {
+                continue;
+            }
+            PlatformObj platform = (PlatformObj) elementObj;
+            if (!platform.isLive() || !isWithinPlatformSpan(platform, footX)) {
+                continue;
+            }
+            int platformBottom = platform.getTopSurfaceY();
+            if (referenceBottom - platformBottom > MAX_STEP_UP) {
+                continue;
+            }
+            if (platformBottom - referenceBottom > MAX_SNAP_DOWN) {
+                continue;
+            }
+            if (platformBottom < bestBottom) {
+                bestBottom = platformBottom;
+            }
+        }
+        return bestBottom;
+    }
+
+    private boolean isWithinPlatformSpan(PlatformObj platform, int footX) {
+        int margin = resolvePlatformEdgeMargin(platform);
+        return footX >= platform.getX() + margin
+                && footX <= platform.getX() + platform.getW() - margin;
+    }
+
+    private int resolvePlatformEdgeMargin(PlatformObj platform) {
+        return Math.min(PLATFORM_EDGE_MARGIN, Math.max(0, platform.getW() / 3));
     }
 }

@@ -44,6 +44,7 @@ public class Boss extends ElementObj {
     private int patrolSpeed = 2;
     private boolean entered = false;
     private boolean patrolRight = false;
+    private boolean faceRight = false;
     private boolean countedKill = false;
     private boolean dying = false;
     private long lastAttackTime = -120;
@@ -66,7 +67,14 @@ public class Boss extends ElementObj {
         int drawH = frame.getIconHeight();
         int drawX = this.getX() + (this.getW() - drawW) / 2;
         int drawY = this.getY() + this.getH() - drawH;
-        g.drawImage(frame.getImage(), drawX, drawY, drawW, drawH, null);
+        boolean sourceFacesRight = animationSet.sourceFacesRight;
+        boolean shouldMirror = faceRight != sourceFacesRight;
+        if (shouldMirror) {
+            // Flip horizontally by drawing with negative width.
+            g.drawImage(frame.getImage(), drawX + drawW, drawY, -drawW, drawH, null);
+        } else {
+            g.drawImage(frame.getImage(), drawX, drawY, drawW, drawH, null);
+        }
     }
 
     @Override
@@ -74,6 +82,7 @@ public class Boss extends ElementObj {
         if (dying) {
             return;
         }
+        updateFacing();
         int x = this.getX() - GameRuntime.worldScrollX;
         int minX = GameJFrame.GameX - 430;
         int maxX = GameJFrame.GameX - 170;
@@ -96,6 +105,7 @@ public class Boss extends ElementObj {
         this.setX(x);
         int footX = this.getX() + this.getW() / 2;
         this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - this.getH());
+        updateFacing();
     }
 
     @Override
@@ -138,6 +148,7 @@ public class Boss extends ElementObj {
         if (!entered) {
             return;
         }
+        updateFacing();
         if (isBoss2()) {
             handleBoss2Attack(gameTime);
             return;
@@ -219,10 +230,18 @@ public class Boss extends ElementObj {
         if (bulletTemplate == null) {
             return;
         }
-        int bulletX = this.getX() - 8;
+        boolean firingRight = resolveFacingToNearestPlayer();
+        faceRight = firingRight;
+        int bulletW = 16;
+        ImageIcon bulletIcon = GameLoad.getImage(BOSS_BULLET);
+        if (bulletIcon != null && bulletIcon.getIconWidth() > 0) {
+            bulletW = bulletIcon.getIconWidth();
+        }
+        int bulletX = firingRight ? (this.getX() + this.getW() - 6) : (this.getX() - bulletW + 6);
         int bulletY = this.getY() + 36;
+        int vx = firingRight ? 10 : -10;
         ElementObj bullet = bulletTemplate.createElement(
-                bulletX + "," + bulletY + "," + BOSS_BULLET + ",-10," + vy + "," + damage + ",0.0,0,120");
+                bulletX + "," + bulletY + "," + BOSS_BULLET + "," + vx + "," + vy + "," + damage + ",0.0,0,120");
         em.addElement(bullet, GameElement.ENEMYFILE);
     }
 
@@ -287,6 +306,7 @@ public class Boss extends ElementObj {
         if (currentAction != BossAction.ATTACK) {
             return;
         }
+        updateFacing();
         if (volleyFired || gameTime - actionStartTime < BOSS2_ATTACK_WINDUP) {
             return;
         }
@@ -296,9 +316,47 @@ public class Boss extends ElementObj {
     }
 
     private void fireStandardVolley() {
+        updateFacing();
         spawnBullet(-2, 2);
         spawnBullet(0, 2);
         spawnBullet(2, 2);
+    }
+
+    private void updateFacing() {
+        ElementObj nearest = findNearestLivePlayer();
+        if (nearest == null) {
+            return;
+        }
+        faceRight = nearest.getCenterX() >= this.getCenterX();
+    }
+
+    private boolean resolveFacingToNearestPlayer() {
+        ElementObj nearest = findNearestLivePlayer();
+        if (nearest == null) {
+            return faceRight;
+        }
+        return nearest.getCenterX() >= this.getCenterX();
+    }
+
+    private ElementObj findNearestLivePlayer() {
+        List<ElementObj> plays = em.getElementsByKey(GameElement.PLAY);
+        if (plays == null || plays.isEmpty()) {
+            return null;
+        }
+        ElementObj nearest = null;
+        int bestDx = Integer.MAX_VALUE;
+        int bossX = this.getCenterX();
+        for (ElementObj obj : plays) {
+            if (obj == null || !obj.isLive()) {
+                continue;
+            }
+            int dx = Math.abs(obj.getCenterX() - bossX);
+            if (dx < bestDx) {
+                bestDx = dx;
+                nearest = obj;
+            }
+        }
+        return nearest;
     }
 
     private ImageIcon resolveCurrentFrame(long gameTime) {
@@ -397,17 +455,20 @@ public class Boss extends ElementObj {
         private final List<ImageIcon> reloadFrames;
         private final List<ImageIcon> crouchFrames;
         private final List<ImageIcon> dieFrames;
+        private final boolean sourceFacesRight;
 
         private BossAnimationSet(List<ImageIcon> moveFrames,
                                  List<ImageIcon> attackFrames,
                                  List<ImageIcon> reloadFrames,
                                  List<ImageIcon> crouchFrames,
-                                 List<ImageIcon> dieFrames) {
+                                 List<ImageIcon> dieFrames,
+                                 boolean sourceFacesRight) {
             this.moveFrames = freeze(moveFrames);
             this.attackFrames = freeze(attackFrames);
             this.reloadFrames = freeze(reloadFrames);
             this.crouchFrames = freeze(crouchFrames);
             this.dieFrames = freeze(dieFrames);
+            this.sourceFacesRight = sourceFacesRight;
         }
 
         private List<ImageIcon> framesFor(BossAction action) {
@@ -434,16 +495,18 @@ public class Boss extends ElementObj {
         }
 
         private static BossAnimationSet loadBoss1() {
-            List<ImageIcon> moveFrames = GameLoad.loadFramesFromDirectory("image/images/boss/boss1");
+            List<ImageIcon> moveFrames = sanitizeFrames(
+                    GameLoad.loadFramesFromDirectory("image/images/boss/boss1"));
             if (moveFrames.isEmpty()) {
-                moveFrames = loadLegacyBoss1Frames();
+                moveFrames = sanitizeFrames(loadLegacyBoss1Frames());
             }
             return new BossAnimationSet(
                     moveFrames,
                     Collections.emptyList(),
                     Collections.emptyList(),
                     Collections.emptyList(),
-                    Collections.emptyList());
+                    Collections.emptyList(),
+                    false);
         }
 
         private static BossAnimationSet loadBoss2() {
@@ -457,7 +520,8 @@ public class Boss extends ElementObj {
                     sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/attack")),
                     sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/换子弹")),
                     sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/下蹲")),
-                    sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/死亡动作")));
+                    sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/死亡动作")),
+                    true);
         }
 
         private static List<ImageIcon> freeze(List<ImageIcon> frames) {
