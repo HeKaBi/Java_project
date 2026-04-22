@@ -16,6 +16,8 @@ import java.awt.Graphics2D;
 import java.awt.GradientPaint;
 import java.awt.Image;
 import java.awt.RenderingHints;
+import java.awt.geom.Area;
+import java.awt.geom.Ellipse2D;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -52,6 +54,8 @@ public class GameMainJPanel extends JPanel implements Runnable {
     private static final Color HUD_SLOT_FILL = new Color(36, 36, 28, 220);
     private static final Color HUD_SLOT_ACTIVE = new Color(56, 88, 155, 236);
     private static final Color HUD_SLOT_DISABLED = new Color(67, 63, 54, 180);
+    private static final Color STAGE_TRANSITION_BLACK = new Color(0, 0, 0, 242);
+    private static final Color STAGE_TRANSITION_DOT = new Color(255, 235, 198, 46);
 
     private ElementManager em;
     private final Image startScreenImage;
@@ -86,6 +90,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
         drawEffects(g, all);
         drawHud((Graphics2D) g, all);
         drawFinishOverlay(g);
+        drawStageTransitionOverlay((Graphics2D) g);
     }
 
     private Image loadStartScreenImage() {
@@ -600,6 +605,80 @@ public class GameMainJPanel extends JPanel implements Runnable {
                 new Font(HUD_CHINESE_FONT.getFamily(), Font.BOLD, 28), Color.WHITE, Color.BLACK);
         drawOutlinedText(g2, "按 R 重新开始", 220, 380,
                 new Font(HUD_CHINESE_FONT.getFamily(), Font.BOLD, 28), Color.WHITE, Color.BLACK);
+    }
+
+    private void drawStageTransitionOverlay(Graphics2D g2) {
+        if (!GameRuntime.stageTransitionActive) {
+            return;
+        }
+        double progress = clamp01(GameRuntime.getStageTransitionProgress());
+        int width = getWidth();
+        int height = getHeight();
+        if (width <= 0 || height <= 0) {
+            return;
+        }
+
+        double apertureRatio = GameRuntime.stageTransitionClosing ? (1.0 - progress) : progress;
+        double eased = Math.pow(clamp01(apertureRatio), 0.82);
+        double centerX = width * 0.63;
+        double centerY = height * 0.56;
+        double maxRadiusX = width * 0.84;
+        double maxRadiusY = height * 0.88;
+        double radiusX = maxRadiusX * eased;
+        double radiusY = maxRadiusY * eased;
+
+        Graphics2D overlay = (Graphics2D) g2.create();
+        Area blackout = new Area(new java.awt.Rectangle(0, 0, width, height));
+        if (radiusX > 1.0 && radiusY > 1.0) {
+            blackout.subtract(new Area(new Ellipse2D.Double(centerX - radiusX, centerY - radiusY,
+                    radiusX * 2.0, radiusY * 2.0)));
+        }
+        overlay.setColor(STAGE_TRANSITION_BLACK);
+        overlay.fill(blackout);
+
+        if (radiusX > 4.0 && radiusY > 4.0) {
+            drawTransitionHalftone(overlay, centerX, centerY, radiusX, radiusY, progress);
+        }
+        overlay.dispose();
+    }
+
+    private void drawTransitionHalftone(Graphics2D g2, double centerX, double centerY,
+                                        double radiusX, double radiusY, double progress) {
+        double ringThickness = Math.max(20.0, Math.min(92.0, Math.min(radiusX, radiusY) * 0.22));
+        double innerRadiusX = Math.max(1.0, radiusX - ringThickness);
+        double innerRadiusY = Math.max(1.0, radiusY - ringThickness);
+        Area ring = new Area(new Ellipse2D.Double(centerX - radiusX, centerY - radiusY,
+                radiusX * 2.0, radiusY * 2.0));
+        ring.subtract(new Area(new Ellipse2D.Double(centerX - innerRadiusX, centerY - innerRadiusY,
+                innerRadiusX * 2.0, innerRadiusY * 2.0)));
+
+        double densityScale = 0.88 + (1.0 - clamp01(progress)) * 0.36;
+        int spacing = Math.max(8, (int) Math.round(12 * densityScale));
+        int dotSize = Math.max(3, (int) Math.round(spacing * 0.45));
+        int minX = Math.max(0, (int) Math.floor(centerX - radiusX - ringThickness));
+        int maxX = Math.min(getWidth(), (int) Math.ceil(centerX + radiusX + ringThickness));
+        int minY = Math.max(0, (int) Math.floor(centerY - radiusY - ringThickness));
+        int maxY = Math.min(getHeight(), (int) Math.ceil(centerY + radiusY + ringThickness));
+
+        for (int y = minY; y < maxY; y += spacing) {
+            int rowOffset = ((y / spacing) & 1) == 0 ? 0 : spacing / 2;
+            for (int x = minX + rowOffset; x < maxX; x += spacing) {
+                if (!ring.contains(x, y)) {
+                    continue;
+                }
+                double dx = (x - centerX) / Math.max(1.0, radiusX);
+                double dy = (y - centerY) / Math.max(1.0, radiusY);
+                double dist = Math.sqrt(dx * dx + dy * dy);
+                double alphaScale = clamp01((dist - 0.76) / 0.24);
+                int alpha = (int) Math.round(STAGE_TRANSITION_DOT.getAlpha() * alphaScale);
+                if (alpha <= 0) {
+                    continue;
+                }
+                g2.setColor(new Color(STAGE_TRANSITION_DOT.getRed(), STAGE_TRANSITION_DOT.getGreen(),
+                        STAGE_TRANSITION_DOT.getBlue(), alpha));
+                g2.fillOval(x - dotSize / 2, y - dotSize / 2, dotSize, dotSize);
+            }
+        }
     }
 
     private void addAll(List<ElementObj> actors, ElementObj[] objs) {

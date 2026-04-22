@@ -1,5 +1,6 @@
 package com.tedu.controller;
 
+import com.tedu.element.AdvancePromptEffect;
 import com.tedu.element.Boss;
 import com.tedu.element.ElementObj;
 import com.tedu.element.Enemy;
@@ -22,6 +23,17 @@ import java.util.Map;
 import java.util.Random;
 
 public class GameThread extends Thread {
+    private static final long STAGE_TRANSITION_CLOSE_MS = 900L;
+    private static final long STAGE_TRANSITION_OPEN_MS = 820L;
+    private static final String STAGE1_BGM_PATH = "music/mission1_background.wav";
+    private static final String STAGE2_BGM_PATH = "music/mission2_background.wav";
+    private static final String STAGE3_BGM_PATH = "music/mission3_background.wav";
+    private static final String DEFAULT_STAGE_BGM_PATH = "music/boss_lv.wav";
+    private static final int ADVANCE_PROMPT_X = GameJFrame.GameX - 136;
+    private static final int ADVANCE_PROMPT_Y = 75;
+    private static final int ADVANCE_PROMPT_W = 96;
+    private static final int ADVANCE_PROMPT_H = 96;
+    private static final int ADVANCE_PROMPT_TICKS = 180;
     private static final String STAGE1_MAP_PATH = "image/images/\u80cc\u666f/mission1.png";
     private static final String STAGE2_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
     private static final String STAGE3_MAP_PATH = "image/images/\u80cc\u666f/mission3.png";
@@ -31,17 +43,17 @@ public class GameThread extends Thread {
                     1200, 420, 950,
                     75, 6, 35,
                     1, 2, 2, 3,
-                    3, 1, 24, "weapon2"),
+                    3, 1, 24, "weapon2", STAGE1_BGM_PATH),
             new StageConfig("第二关", STAGE2_MAP_PATH,
                     3600, 1200, 3050,
                     55, 8, 55,
                     2, 3, 3, 4,
-                    4, 2, 36, "grenade"),
+                    4, 2, 36, "grenade", STAGE2_BGM_PATH),
             new StageConfig("第三关", STAGE3_MAP_PATH,
                     3200, 1120, 2780,
                     48, 9, 60,
                     3, 4, 4, 5,
-                    5, 3, 48, "weapon2")
+                    5, 3, 48, "weapon2", STAGE3_BGM_PATH)
     };
 
     private final ElementManager em;
@@ -95,7 +107,6 @@ public class GameThread extends Thread {
         GameLoad.loadImg();
         GameLoad.loadObj();
         loadStage(0, 0L, null);
-        AudioPlayer.playBgmLoop("music/boss_lv.wav");
         GameRuntime.markGameStartNow();
         GameRuntime.finishStartTransition();
     }
@@ -103,6 +114,7 @@ public class GameThread extends Thread {
     private void loadStage(int stageIndex, long gameTime, PaoPao existingPlayer) {
         currentStageIndex = stageIndex;
         StageConfig stage = getCurrentStage();
+        AudioPlayer.playBgmLoop(stage.bgmPath);
         clearStageElements();
         resetStageState(gameTime);
         int resolvedStageLength = loadMap(stage);
@@ -216,7 +228,7 @@ public class GameThread extends Thread {
             if (bossSpawned && !missionResolved && bosses.isEmpty()) {
                 missionResolved = true;
                 if (hasNextStage()) {
-                    loadStage(currentStageIndex + 1, gameTime, getPlayer());
+                    playStageTransition(currentStageIndex + 1, gameTime, getPlayer());
                 } else {
                     GameRuntime.missionClear = true;
                     GameRuntime.finishTitle = "任务完成";
@@ -233,6 +245,42 @@ public class GameThread extends Thread {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void playStageTransition(int nextStageIndex, long gameTime, PaoPao player) {
+        GameRuntime.beginStageTransition(true, STAGE_TRANSITION_CLOSE_MS);
+        waitForStageTransition(STAGE_TRANSITION_CLOSE_MS);
+        loadStage(nextStageIndex, gameTime, player);
+        GameRuntime.beginStageTransition(false, STAGE_TRANSITION_OPEN_MS);
+        waitForStageTransition(STAGE_TRANSITION_OPEN_MS);
+        GameRuntime.clearStageTransition();
+    }
+
+    private void waitForStageTransition(long durationMs) {
+        long waitUntil = System.currentTimeMillis() + Math.max(0L, durationMs);
+        while (System.currentTimeMillis() < waitUntil) {
+            try {
+                sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                break;
+            }
+        }
+    }
+
+    private void spawnAdvancePrompt() {
+        List<ElementObj> effects = em.getElementsByKey(GameElement.DIE);
+        synchronized (effects) {
+            for (ElementObj effect : effects) {
+                if (effect instanceof AdvancePromptEffect) {
+                    effect.setLive(false);
+                }
+            }
+        }
+        ElementObj prompt = new AdvancePromptEffect().createElement(
+                ADVANCE_PROMPT_X + "," + ADVANCE_PROMPT_Y + ","
+                        + ADVANCE_PROMPT_W + "," + ADVANCE_PROMPT_H + "," + ADVANCE_PROMPT_TICKS);
+        em.addElement(prompt, GameElement.DIE);
     }
 
     private int resolveWorldScroll(List<ElementObj> plays, List<ElementObj> bosses) {
@@ -408,6 +456,7 @@ public class GameThread extends Thread {
                 }
                 if (hostageObj instanceof Hostage) {
                     ((Hostage) hostageObj).rescue();
+                    spawnAdvancePrompt();
                 } else {
                     hostageObj.setLive(false);
                 }
@@ -431,7 +480,11 @@ public class GameThread extends Thread {
                 continue;
             }
             if (itemObj instanceof SupplyItem) {
-                ((SupplyItem) itemObj).applyTo(play);
+                SupplyItem item = (SupplyItem) itemObj;
+                if (!item.canPickup()) {
+                    continue;
+                }
+                item.applyTo(play);
             } else {
                 itemObj.setLive(false);
             }
@@ -491,6 +544,7 @@ public class GameThread extends Thread {
         private final int scoutHp;
         private final int bossHp;
         private final String hostageRewardType;
+        private final String bgmPath;
 
         private StageConfig(String title, String mapPath, int stageLength,
                             int hostageSpawnDistance, int bossSpawnDistance,
@@ -498,7 +552,7 @@ public class GameThread extends Thread {
                             int enemySpeedMin, int enemySpeedMax,
                             int enemyHpMin, int enemyHpMax,
                             int scoutSpeed, int scoutHp,
-                            int bossHp, String hostageRewardType) {
+                            int bossHp, String hostageRewardType, String bgmPath) {
             this.title = title;
             this.mapPath = mapPath;
             this.minStageLength = Math.max(0, stageLength);
@@ -516,6 +570,7 @@ public class GameThread extends Thread {
             this.scoutHp = scoutHp;
             this.bossHp = bossHp;
             this.hostageRewardType = hostageRewardType;
+            this.bgmPath = (bgmPath == null || bgmPath.isBlank()) ? DEFAULT_STAGE_BGM_PATH : bgmPath;
         }
 
         private int resolveHostageSpawnDistance(int activeStageLength) {

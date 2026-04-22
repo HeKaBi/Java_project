@@ -176,6 +176,10 @@ public class Enemy extends ElementObj {
         return true;
     }
 
+    public boolean isAdvanceTriggerTarget() {
+        return type == EnemyType.ENEMY3 || type == EnemyType.ENEMY4;
+    }
+
     private void spawnProjectile() {
         ElementObj bulletTemplate = GameLoad.getObj("ebullet");
         if (bulletTemplate == null || type.projectilePath == null) {

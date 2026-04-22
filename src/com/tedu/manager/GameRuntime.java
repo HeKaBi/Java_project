@@ -24,6 +24,10 @@ public class GameRuntime {
     public static volatile String finishTitle = "任务失败";
     public static volatile String bannerText = "";
     public static volatile long bannerUntilMs = 0L;
+    public static volatile boolean stageTransitionActive = false;
+    public static volatile boolean stageTransitionClosing = false;
+    public static volatile long stageTransitionStartMs = 0L;
+    public static volatile long stageTransitionDurationMs = 0L;
     public static volatile int battlefieldMaxBottom = DEFAULT_BATTLEFIELD_MAX_BOTTOM;
     private static volatile TerrainState terrainState = null;
 
@@ -48,6 +52,10 @@ public class GameRuntime {
         finishTitle = "任务失败";
         bannerText = "";
         bannerUntilMs = 0L;
+        stageTransitionActive = false;
+        stageTransitionClosing = false;
+        stageTransitionStartMs = 0L;
+        stageTransitionDurationMs = 0L;
         resetBattlefield();
     }
 
@@ -67,6 +75,10 @@ public class GameRuntime {
         finishTitle = "任务失败";
         bannerText = "";
         bannerUntilMs = 0L;
+        stageTransitionActive = false;
+        stageTransitionClosing = false;
+        stageTransitionStartMs = 0L;
+        stageTransitionDurationMs = 0L;
         resetBattlefield();
     }
 
@@ -98,6 +110,28 @@ public class GameRuntime {
     public static void showBanner(String text, long durationMs) {
         bannerText = text == null ? "" : text;
         bannerUntilMs = System.currentTimeMillis() + Math.max(0L, durationMs);
+    }
+
+    public static void beginStageTransition(boolean closing, long durationMs) {
+        stageTransitionActive = true;
+        stageTransitionClosing = closing;
+        stageTransitionStartMs = System.currentTimeMillis();
+        stageTransitionDurationMs = Math.max(1L, durationMs);
+    }
+
+    public static void clearStageTransition() {
+        stageTransitionActive = false;
+        stageTransitionClosing = false;
+        stageTransitionStartMs = 0L;
+        stageTransitionDurationMs = 0L;
+    }
+
+    public static double getStageTransitionProgress() {
+        if (!stageTransitionActive || stageTransitionDurationMs <= 0L) {
+            return 0.0;
+        }
+        double elapsed = (System.currentTimeMillis() - stageTransitionStartMs) / (double) stageTransitionDurationMs;
+        return Math.max(0.0, Math.min(1.0, elapsed));
     }
 
     public static int getStageProgressPercent() {
