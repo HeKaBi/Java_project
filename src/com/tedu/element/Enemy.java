@@ -16,7 +16,9 @@ public class Enemy extends ElementObj {
     private static final int HITBOX_W = 52;
     private static final int HITBOX_H = 72;
     private static final int MAX_STEP_UP = 12;
+    private static final int MAX_SNAP_DOWN = 8;
     private static final int GROUND_PROBE_INSET = 5;
+    private static final int PLATFORM_EDGE_MARGIN = 6;
 
     private final Random random = new Random();
     private final ElementManager em = ElementManager.getManager();
@@ -55,6 +57,7 @@ public class Enemy extends ElementObj {
     protected void move() {
         ElementObj player = getPlayer();
         int x = this.getX() - GameRuntime.worldScrollX;
+        int currentBottom = this.getY() + this.getH();
         if (player != null) {
             int dx = player.getCenterX() - this.getCenterX();
             faceRight = dx > 0;
@@ -66,7 +69,7 @@ public class Enemy extends ElementObj {
         }
         int footX = x + this.getW() / 2;
         this.setX(x);
-        this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - this.getH());
+        this.setY(getWalkSupportBottomAt(footX, currentBottom) - this.getH());
         if (this.getX() + this.getW() < -120 || this.getX() > GameJFrame.GameX + 180) {
             this.setLive(false);
         }
@@ -122,7 +125,7 @@ public class Enemy extends ElementObj {
         this.setW(HITBOX_W);
         this.setH(HITBOX_H);
         int footX = this.getX() + this.getW() / 2;
-        this.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - this.getH());
+        this.setY(getWalkSupportBottomAt(footX, GameRuntime.getBattlefieldMaxBottomAt(footX)) - this.getH());
         this.desiredRange = randomBetween(type.rangeMin, type.rangeMax);
         this.attackRange = desiredRange + type.attackRangePadding;
         this.attacking = false;
@@ -243,13 +246,52 @@ public class Enemy extends ElementObj {
         int actorBottom = this.getY() + this.getH();
         for (int candidateX = currentX + step; candidateX != desiredX + step; candidateX += step) {
             int frontX = candidateX + (step > 0 ? this.getW() - GROUND_PROBE_INSET : GROUND_PROBE_INSET);
-            int frontSurface = GameRuntime.getBattlefieldMaxBottomAt(frontX);
+            int frontSurface = getWalkSupportBottomAt(frontX, actorBottom);
             if (actorBottom - frontSurface > MAX_STEP_UP) {
                 break;
             }
+            if (frontSurface - actorBottom > MAX_SNAP_DOWN) {
+                break;
+            }
             resolvedX = candidateX;
+            actorBottom = frontSurface;
         }
         return resolvedX;
+    }
+
+    private int getWalkSupportBottomAt(int footX, int referenceBottom) {
+        int bestBottom = GameRuntime.getBattlefieldMaxBottomAt(footX);
+        List<ElementObj> platforms = em.getElementsByKey(GameElement.PLATFORM);
+        for (ElementObj elementObj : platforms) {
+            if (!(elementObj instanceof PlatformObj)) {
+                continue;
+            }
+            PlatformObj platform = (PlatformObj) elementObj;
+            if (!platform.isLive() || !isWithinPlatformSpan(platform, footX)) {
+                continue;
+            }
+            int platformBottom = platform.getTopSurfaceY();
+            if (referenceBottom - platformBottom > MAX_STEP_UP) {
+                continue;
+            }
+            if (platformBottom - referenceBottom > MAX_SNAP_DOWN) {
+                continue;
+            }
+            if (platformBottom < bestBottom) {
+                bestBottom = platformBottom;
+            }
+        }
+        return bestBottom;
+    }
+
+    private boolean isWithinPlatformSpan(PlatformObj platform, int footX) {
+        int margin = resolvePlatformEdgeMargin(platform);
+        return footX >= platform.getX() + margin
+                && footX <= platform.getX() + platform.getW() - margin;
+    }
+
+    private int resolvePlatformEdgeMargin(PlatformObj platform) {
+        return Math.min(PLATFORM_EDGE_MARGIN, Math.max(0, platform.getW() / 3));
     }
 
     private int randomBetween(int min, int max) {

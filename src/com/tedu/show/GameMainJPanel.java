@@ -210,6 +210,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
     private void drawEffects(Graphics g, Map<GameElement, List<ElementObj>> all) {
         for (GameElement ge : GameElement.values()) {
             if (ge == GameElement.MAPS
+                    || ge == GameElement.PLATFORM
                     || ge == GameElement.PLAY
                     || ge == GameElement.ENEMY
                     || ge == GameElement.BOSS
