@@ -24,35 +24,42 @@ import javax.swing.JPanel;
 
 public class GameMainJPanel extends JPanel implements Runnable {
     private static final String START_SCREEN_PATH = "image/images/\u80cc\u666f/start.jpg";
-    private static final Font HUD_SMALL_FONT = new Font("Consolas", Font.BOLD, 12);
-    private static final Font HUD_LABEL_FONT = new Font("Consolas", Font.BOLD, 14);
-    private static final Font HUD_VALUE_FONT = new Font("Consolas", Font.BOLD, 24);
-    private static final Font HUD_BIG_FONT = new Font("Consolas", Font.BOLD, 40);
-    private static final Font BANNER_FONT = new Font("Consolas", Font.BOLD, 24);
+    private static final String PLAYER_PORTRAIT_PATH = "image/images/plays/\u4e0a\u534a\u8eab/\u6b66\u56681/right/attack/attack001.png";
+    private static final Font HUD_SMALL_FONT = new Font("DialogInput", Font.BOLD, 13);
+    private static final Font HUD_LABEL_FONT = new Font("DialogInput", Font.BOLD, 16);
+    private static final Font HUD_VALUE_FONT = new Font("DialogInput", Font.BOLD, 26);
+    private static final Font HUD_BIG_FONT = new Font("DialogInput", Font.BOLD, 42);
+    private static final Font HUD_CHINESE_FONT = new Font("Microsoft YaHei UI", Font.BOLD, 16);
+    private static final Font BANNER_FONT = new Font("DialogInput", Font.BOLD, 24);
     private static final Font START_PROMPT_FONT = new Font("Impact", Font.PLAIN, 38);
-    private static final Font START_ACTION_FONT = new Font("Consolas", Font.BOLD, 18);
-    private static final Font START_INFO_FONT = new Font("Consolas", Font.BOLD, 13);
+    private static final Font START_ACTION_FONT = new Font("DialogInput", Font.BOLD, 18);
+    private static final Font START_INFO_FONT = new Font("DialogInput", Font.BOLD, 13);
 
-    private static final Color HUD_PANEL = new Color(12, 24, 60, 220);
-    private static final Color HUD_PANEL_DARK = new Color(9, 16, 39, 230);
-    private static final Color HUD_BORDER = new Color(108, 166, 255);
-    private static final Color HUD_CYAN = new Color(226, 244, 255);
-    private static final Color HUD_GOLD = new Color(255, 215, 86);
-    private static final Color HUD_ORANGE = new Color(255, 162, 46);
-    private static final Color HUD_RED = new Color(214, 64, 52);
-    private static final Color HUD_RED_GLOW = new Color(255, 145, 111);
-    private static final Color HUD_GREEN = new Color(78, 224, 144);
-    private static final Color HUD_GREEN_GLOW = new Color(180, 255, 200);
-    private static final Color HUD_MIST = new Color(8, 14, 34, 165);
-    private static final Color HUD_MIST_SOFT = new Color(38, 78, 134, 72);
-    private static final Color HUD_SEPARATOR = new Color(124, 177, 255, 136);
-    private static final Color HUD_TIME_GLOW = new Color(255, 198, 82, 150);
+    private static final Color HUD_PANEL = new Color(31, 30, 20, 224);
+    private static final Color HUD_PANEL_DARK = new Color(20, 18, 12, 236);
+    private static final Color HUD_BORDER = new Color(126, 109, 56);
+    private static final Color HUD_CYAN = new Color(234, 230, 216);
+    private static final Color HUD_GOLD = new Color(246, 196, 44);
+    private static final Color HUD_ORANGE = new Color(255, 173, 38);
+    private static final Color HUD_RED = new Color(191, 67, 46);
+    private static final Color HUD_RED_GLOW = new Color(240, 153, 103);
+    private static final Color HUD_GREEN = new Color(78, 214, 128);
+    private static final Color HUD_GREEN_GLOW = new Color(184, 255, 205);
+    private static final Color HUD_MIST = new Color(13, 12, 8, 188);
+    private static final Color HUD_MIST_SOFT = new Color(132, 112, 62, 46);
+    private static final Color HUD_SEPARATOR = new Color(172, 149, 82, 132);
+    private static final Color HUD_TIME_GLOW = new Color(255, 208, 85, 156);
+    private static final Color HUD_SLOT_FILL = new Color(36, 36, 28, 220);
+    private static final Color HUD_SLOT_ACTIVE = new Color(56, 88, 155, 236);
+    private static final Color HUD_SLOT_DISABLED = new Color(67, 63, 54, 180);
 
     private ElementManager em;
     private final Image startScreenImage;
+    private final Image playerPortraitImage;
 
     public GameMainJPanel() {
         startScreenImage = loadStartScreenImage();
+        playerPortraitImage = loadPlayerPortraitImage();
         init();
     }
 
@@ -83,6 +90,11 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
     private Image loadStartScreenImage() {
         javax.swing.ImageIcon icon = GameLoad.loadImage(START_SCREEN_PATH);
+        return icon == null ? null : icon.getImage();
+    }
+
+    private Image loadPlayerPortraitImage() {
+        javax.swing.ImageIcon icon = GameLoad.loadImage(PLAYER_PORTRAIT_PATH);
         return icon == null ? null : icon.getImage();
     }
 
@@ -136,13 +148,13 @@ public class GameMainJPanel extends JPanel implements Runnable {
                 ? new Color(255, 196, 92, 236)
                 : (pulse > 9 ? new Color(255, 214, 114, 240) : new Color(239, 196, 93, 220));
 
-        drawCenteredShadowedText(g2, loadingStart ? "MISSION START" : "NEW GAME", centerX, titleY,
+        drawCenteredShadowedText(g2, loadingStart ? "任务开始" : "新的游戏", centerX, titleY,
                 START_PROMPT_FONT, titleColor, new Color(24, 20, 34, 110), 2);
-        drawCenteredShadowedText(g2, loadingStart ? "ENTERING STAGE 1" : "PRESS ENTER",
+        drawCenteredShadowedText(g2, loadingStart ? "进入第一关" : "按回车开始",
                 centerX + 4, titleY + 36,
                 START_ACTION_FONT, accentColor, new Color(19, 14, 22, 90), 1);
         drawCenteredShadowedText(g2,
-                loadingStart ? "Loading terrain and mission units" : "A/D move   W double jump   E aim up   Ctrl crouch",
+                loadingStart ? "正在装载地形和任务单位" : "A/D 移动   W 跳跃   E 上瞄   Ctrl 下蹲",
                 centerX + 4, titleY + 62, START_INFO_FONT,
                 new Color(230, 238, 244, loadingStart ? 230 : 210), new Color(8, 10, 18, 110), 1);
         drawAccentLine(g2, centerX, titleY + 76, 132 + pulse, accentColor);
@@ -168,15 +180,17 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
     private void drawCenteredShadowedText(Graphics2D g2, String text, int centerX, int y,
                                           Font font, Color fill, Color shadow, int depth) {
-        g2.setFont(font);
-        FontMetrics metrics = g2.getFontMetrics(font);
+        Font displayFont = resolveDisplayFont(font, text);
+        g2.setFont(displayFont);
+        FontMetrics metrics = g2.getFontMetrics(displayFont);
         int drawX = centerX - metrics.stringWidth(text) / 2;
-        drawShadowedText(g2, text, drawX, y, font, fill, shadow, depth);
+        drawShadowedText(g2, text, drawX, y, displayFont, fill, shadow, depth);
     }
 
     private void drawShadowedText(Graphics2D g2, String text, int x, int y,
                                   Font font, Color fill, Color shadow, int depth) {
-        g2.setFont(font);
+        Font displayFont = resolveDisplayFont(font, text);
+        g2.setFont(displayFont);
         for (int offset = depth; offset >= 1; offset--) {
             int alpha = Math.max(18, shadow.getAlpha() / (offset + 2));
             g2.setColor(new Color(shadow.getRed(), shadow.getGreen(), shadow.getBlue(), alpha));
@@ -240,7 +254,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
             drawPlayerHud(hud, player);
         }
         drawMissionHud(hud);
-        drawTimeHud(hud);
+        drawTimeHud(hud, player);
         if (boss != null) {
             drawBossHud(hud, boss);
         }
@@ -249,68 +263,80 @@ public class GameMainJPanel extends JPanel implements Runnable {
     }
 
     private void drawPlayerHud(Graphics2D g2, PaoPao play) {
-        int x = 22;
-        int y = 22;
+        int x = 18;
+        int y = GameJFrame.GameY - 92;
+        int w = 332;
+        int h = 64;
 
-        drawOutlinedText(g2, "1UP", x, y + 18, HUD_LABEL_FONT, HUD_CYAN, Color.BLACK);
-        drawFadedLine(g2, x - 4, y + 24, 46, HUD_SEPARATOR);
+        drawHudPlate(g2, x, y, w, h);
+        drawInsetPanel(g2, x + 10, y + 8, 58, 48);
+        drawPlayerPortrait(g2, x + 10, y + 8, 58, 48);
+        drawOutlinedText(g2, "1P", x + 20, y + 58, HUD_SMALL_FONT, HUD_GOLD, Color.BLACK);
 
-        drawOutlinedText(g2, "LIFE", x + 62, y + 16, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
-        drawSegmentBar(g2, x + 62, y + 24, 172, 16, play.getHp(), play.getMaxHp(), HUD_GREEN, HUD_GREEN_GLOW);
+        double hpRatio = play.getMaxHp() <= 0 ? 0.0 : play.getHp() / (double) play.getMaxHp();
+        Color hpFill = hpRatio <= 0.20 ? HUD_RED : HUD_GREEN;
+        Color hpGlow = hpRatio <= 0.20 ? HUD_RED_GLOW : HUD_GREEN_GLOW;
+        drawOutlinedText(g2, "生命", x + 80, y + 18, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
+        drawMeter(g2, x + 80, y + 24, 128, 12, hpRatio, hpFill, hpGlow);
 
-        drawVerticalFadedLine(g2, x + 256, y + 2, 74, HUD_SEPARATOR);
-        drawOutlinedText(g2, "ARMS", x + 278, y + 16, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
-        drawOutlinedText(g2, play.getWeaponHudLabel(), x + 278, y + 48, HUD_VALUE_FONT, HUD_GOLD, Color.BLACK);
-        drawWeaponIndicator(g2, x + 280, y + 70, "R", !play.isHeavyWeaponEquipped(), true);
-        drawWeaponIndicator(g2, x + 312, y + 70, "H", play.isHeavyWeaponEquipped(), play.hasWeapon2());
+        drawOutlinedText(g2, "武器", x + 80, y + 48, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
+        drawWeaponSlot(g2, x + 122, y + 34, 28, 24, "轻", !play.isHeavyWeaponEquipped(), true);
+        drawWeaponSlot(g2, x + 156, y + 34, 28, 24, "重", play.isHeavyWeaponEquipped(), play.hasWeapon2());
 
-        drawVerticalFadedLine(g2, x + 388, y + 2, 74, new Color(255, 190, 96, 116));
-        drawOutlinedText(g2, "BOMB", x + 408, y + 16, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
-        drawOutlinedText(g2, formatCounter(play.getGrenades()), x + 408, y + 74, HUD_BIG_FONT, HUD_ORANGE, Color.BLACK);
-        drawFadedLine(g2, x + 406, y + 80, 58, new Color(255, 176, 68, 128));
+        drawVerticalFadedLine(g2, x + 216, y + 9, 46, HUD_SEPARATOR);
+        drawOutlinedText(g2, "手雷", x + 234, y + 18, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
+        drawOutlinedText(g2, "x" + formatCounter(play.getGrenades()), x + 234, y + 48, HUD_LABEL_FONT, HUD_GOLD, Color.BLACK);
     }
 
     private void drawMissionHud(Graphics2D g2) {
-        int x = 472;
-        int y = 20;
+        int w = 248;
+        int h = 58;
+        int x = GameJFrame.GameX - w - 16;
+        int y = 16;
 
-        drawOutlinedText(g2, "MISSION", x, y + 14, HUD_LABEL_FONT, HUD_CYAN, Color.BLACK);
-        drawFadedLine(g2, x - 4, y + 20, 86, HUD_SEPARATOR);
-        drawStatCluster(g2, x, y + 40, 68, "KILL", String.valueOf(GameRuntime.killCount), HUD_GOLD);
-        drawVerticalFadedLine(g2, x + 88, y + 18, 56, HUD_SEPARATOR);
-        drawStatCluster(g2, x + 108, y + 40, 86, "STAGE",
-                GameRuntime.currentStage + "/" + Math.max(1, GameRuntime.totalStages), HUD_CYAN);
-        drawVerticalFadedLine(g2, x + 214, y + 18, 56, HUD_SEPARATOR);
-        drawStatCluster(g2, x + 234, y + 40, 88, "PROG",
-                GameRuntime.getStageProgressPercent() + "%", HUD_GOLD);
-
-        drawOutlinedText(g2, "ADVANCE", x, y + 84, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
-        drawMeter(g2, x + 72, y + 74, 250, 10,
-                GameRuntime.getStageProgressPercent() / 100.0, HUD_GOLD, new Color(255, 240, 170));
+        drawHudPlate(g2, x, y, w, h);
+        drawOutlinedText(g2, "任务 " + GameRuntime.currentStage, x + 12, y + 18, HUD_LABEL_FONT, HUD_CYAN, Color.BLACK);
+        drawOutlinedText(g2, "击杀 " + formatCounter(Math.max(0, GameRuntime.killCount)), x + 12, y + 42,
+                HUD_SMALL_FONT, HUD_GOLD, Color.BLACK);
+        drawOutlinedText(g2, "进度 " + GameRuntime.getStageProgressPercent() + "%", x + 126, y + 18,
+                HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
+        drawMeter(g2, x + 126, y + 26, 108, 10,
+                GameRuntime.getStageProgressPercent() / 100.0, HUD_GOLD, new Color(255, 236, 166));
+        drawOutlinedText(g2, "关卡 " + GameRuntime.currentStage + "/" + Math.max(1, GameRuntime.totalStages),
+                x + 126, y + 46, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
     }
 
-    private void drawTimeHud(Graphics2D g2) {
-        int x = GameJFrame.GameX - 150;
-        int y = 22;
+    private void drawTimeHud(Graphics2D g2, PaoPao player) {
+        int w = 270;
+        int h = 58;
+        int x = (GameJFrame.GameX - w) / 2;
+        int y = 14;
 
         long seconds = Math.max(0L, GameRuntime.survivalTimeMs / 1000L);
         long tenths = Math.max(0L, (GameRuntime.survivalTimeMs % 1000L) / 100L);
 
-        drawOutlinedText(g2, "TIME", x, y + 18, HUD_LABEL_FONT, HUD_CYAN, Color.BLACK);
-        drawFadedLine(g2, x - 4, y + 24, 94, HUD_TIME_GLOW);
-        drawOutlinedText(g2, String.valueOf(seconds), x, y + 76, HUD_BIG_FONT, HUD_GOLD, Color.BLACK);
-        drawOutlinedText(g2, "." + tenths + "s", x + 72, y + 76, HUD_LABEL_FONT, HUD_CYAN, Color.BLACK);
+        drawHudPlate(g2, x, y, w, h);
+        drawOutlinedText(g2, "武器", x + 12, y + 18, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
+        drawOutlinedText(g2, playWeaponCode(player), x + 12, y + 42, HUD_LABEL_FONT, HUD_GOLD, Color.BLACK);
+        drawVerticalFadedLine(g2, x + 78, y + 10, 38, HUD_SEPARATOR);
+        drawOutlinedText(g2, "手雷", x + 96, y + 18, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
+        String bombText = player == null ? "x00" : "x" + formatCounter(player.getGrenades());
+        drawOutlinedText(g2, bombText, x + 96, y + 42, HUD_LABEL_FONT, HUD_GOLD, Color.BLACK);
+        drawVerticalFadedLine(g2, x + 162, y + 8, 42, new Color(215, 173, 85, 118));
+        drawOutlinedText(g2, "时间", x + 180, y + 18, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
+        drawOutlinedText(g2, String.valueOf(seconds), x + 180, y + 48, HUD_BIG_FONT, HUD_ORANGE, Color.BLACK);
+        drawOutlinedText(g2, "." + tenths, x + 228, y + 48, HUD_LABEL_FONT, HUD_CYAN, Color.BLACK);
     }
 
     private void drawBossHud(Graphics2D g2, Boss boss) {
-        int w = 418;
-        int h = 16;
+        int w = 384;
+        int h = 14;
         int x = (GameJFrame.GameX - w) / 2;
-        int y = 118;
-        drawOutlinedText(g2, "BOSS", x, y + 13, HUD_LABEL_FONT, new Color(255, 235, 218), Color.BLACK);
-        drawMeter(g2, x + 56, y + 1, w - 56, h,
+        int y = 82;
+        drawOutlinedText(g2, "首领", x, y + 12, HUD_LABEL_FONT, new Color(255, 235, 218), Color.BLACK);
+        drawMeter(g2, x + 50, y + 1, w - 50, h,
                 boss.getMaxHp() <= 0 ? 0.0 : boss.getHp() / (double) boss.getMaxHp(), HUD_RED, HUD_RED_GLOW);
-        drawFadedLine(g2, x + 56, y + 22, w - 56, new Color(255, 132, 118, 96));
+        drawFadedLine(g2, x + 50, y + 20, w - 50, new Color(255, 132, 118, 96));
     }
 
     private void drawBanner(Graphics2D g2, boolean bossActive) {
@@ -320,10 +346,11 @@ public class GameMainJPanel extends JPanel implements Runnable {
             return;
         }
 
-        FontMetrics fm = g2.getFontMetrics(BANNER_FONT);
+        Font bannerFont = resolveDisplayFont(BANNER_FONT, GameRuntime.bannerText);
+        FontMetrics fm = g2.getFontMetrics(bannerFont);
         int textW = fm.stringWidth(GameRuntime.bannerText);
         int centerX = GameJFrame.GameX / 2;
-        int baselineY = bossActive ? 170 : 132;
+        int baselineY = bossActive ? 146 : 114;
         int lineGap = 26;
         int halfSpan = Math.min(180, Math.max(72, (GameJFrame.GameX - textW) / 4));
 
@@ -335,12 +362,52 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
     private void drawHudAtmosphere(Graphics2D g2) {
         int width = GameJFrame.GameX;
-        g2.setPaint(new GradientPaint(0, 0, new Color(4, 10, 26, 196), 0, 150, new Color(4, 10, 26, 0)));
+        g2.setPaint(new GradientPaint(0, 0, new Color(16, 15, 10, 206), 0, 120, new Color(16, 15, 10, 0)));
         g2.fillRect(0, 0, width, 164);
+        g2.setPaint(new GradientPaint(0, GameJFrame.GameY - 120, new Color(14, 12, 8, 0),
+                0, GameJFrame.GameY, new Color(14, 12, 8, 170)));
+        g2.fillRect(0, GameJFrame.GameY - 120, width, 120);
         g2.setColor(HUD_MIST_SOFT);
-        g2.fillOval(-80, -56, 340, 136);
-        g2.fillOval(286, -66, 448, 156);
-        g2.fillOval(770, -46, 280, 128);
+        g2.fillOval(-60, -40, 280, 100);
+        g2.fillOval(300, -50, 360, 118);
+        g2.fillOval(840, -34, 220, 88);
+    }
+
+    private void drawHudPlate(Graphics2D g2, int x, int y, int w, int h) {
+        g2.setColor(HUD_PANEL);
+        g2.fillRoundRect(x, y, w, h, 10, 10);
+        g2.setColor(new Color(255, 242, 204, 18));
+        g2.fillRoundRect(x + 2, y + 2, Math.max(1, w - 4), Math.max(8, h / 3), 8, 8);
+        g2.setColor(HUD_BORDER);
+        g2.drawRoundRect(x, y, w, h, 10, 10);
+        g2.setColor(new Color(77, 65, 37, 220));
+        g2.drawRoundRect(x + 1, y + 1, Math.max(1, w - 2), Math.max(1, h - 2), 8, 8);
+    }
+
+    private void drawInsetPanel(Graphics2D g2, int x, int y, int w, int h) {
+        g2.setColor(HUD_PANEL_DARK);
+        g2.fillRoundRect(x, y, w, h, 8, 8);
+        g2.setColor(new Color(158, 140, 84));
+        g2.drawRoundRect(x, y, w, h, 8, 8);
+    }
+
+    private void drawPlayerPortrait(Graphics2D g2, int x, int y, int w, int h) {
+        if (playerPortraitImage == null) {
+            drawCenteredOutlinedText(g2, "兵", x, y, w, h, HUD_LABEL_FONT, HUD_GOLD, Color.BLACK);
+            return;
+        }
+        int imageW = playerPortraitImage.getWidth(null);
+        int imageH = playerPortraitImage.getHeight(null);
+        if (imageW <= 0 || imageH <= 0) {
+            drawCenteredOutlinedText(g2, "兵", x, y, w, h, HUD_LABEL_FONT, HUD_GOLD, Color.BLACK);
+            return;
+        }
+        double scale = Math.min((w - 8) / (double) imageW, (h - 8) / (double) imageH);
+        int drawW = Math.max(1, (int) Math.round(imageW * scale));
+        int drawH = Math.max(1, (int) Math.round(imageH * scale));
+        int drawX = x + (w - drawW) / 2;
+        int drawY = y + (h - drawH) / 2;
+        g2.drawImage(playerPortraitImage, drawX, drawY, drawW, drawH, null);
     }
 
     private void drawStatCluster(Graphics2D g2, int x, int y, int width, String label, String value, Color valueColor) {
@@ -353,12 +420,20 @@ public class GameMainJPanel extends JPanel implements Runnable {
                 new Color(valueColor.getRed(), valueColor.getGreen(), valueColor.getBlue(), 110));
     }
 
-    private void drawWeaponIndicator(Graphics2D g2, int x, int y, String label, boolean selected, boolean enabled) {
-        Color text = selected ? HUD_GOLD : (enabled ? HUD_CYAN : new Color(156, 156, 156));
-        Color line = selected ? new Color(255, 214, 86, 150)
-                : (enabled ? HUD_SEPARATOR : new Color(110, 110, 110, 96));
-        drawOutlinedText(g2, label, x, y, HUD_SMALL_FONT, text, Color.BLACK);
-        drawFadedLine(g2, x - 2, y + 6, 18, line);
+    private void drawWeaponSlot(Graphics2D g2, int x, int y, int w, int h, String label, boolean selected, boolean enabled) {
+        g2.setColor(enabled ? (selected ? HUD_SLOT_ACTIVE : HUD_SLOT_FILL) : HUD_SLOT_DISABLED);
+        g2.fillRoundRect(x, y, w, h, 6, 6);
+        g2.setColor(enabled ? (selected ? HUD_GOLD : HUD_BORDER) : new Color(108, 101, 85));
+        g2.drawRoundRect(x, y, w, h, 6, 6);
+        drawCenteredOutlinedText(g2, label, x, y, w, h, HUD_SMALL_FONT,
+                selected ? HUD_GOLD : (enabled ? HUD_CYAN : new Color(138, 134, 122)), Color.BLACK);
+    }
+
+    private String playWeaponCode(PaoPao player) {
+        if (player == null) {
+            return "步枪";
+        }
+        return player.isHeavyWeaponEquipped() ? "重机枪" : "步枪";
     }
 
     private void drawSegmentBar(Graphics2D g2, int x, int y, int w, int h, int value, int max,
@@ -441,7 +516,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
     }
 
     private void drawOutlinedText(Graphics2D g2, String text, int x, int y, Font font, Color fill, Color outline) {
-        g2.setFont(font);
+        g2.setFont(resolveDisplayFont(font, text));
         g2.setColor(outline);
         g2.drawString(text, x - 1, y);
         g2.drawString(text, x + 1, y);
@@ -453,11 +528,12 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
     private void drawCenteredOutlinedText(Graphics2D g2, String text, int x, int y, int w, int h,
                                           Font font, Color fill, Color outline) {
-        g2.setFont(font);
-        FontMetrics metrics = g2.getFontMetrics(font);
+        Font displayFont = resolveDisplayFont(font, text);
+        g2.setFont(displayFont);
+        FontMetrics metrics = g2.getFontMetrics(displayFont);
         int drawX = x + (w - metrics.stringWidth(text)) / 2;
         int drawY = y + (h - metrics.getHeight()) / 2 + metrics.getAscent();
-        drawOutlinedText(g2, text, drawX, drawY, font, fill, outline);
+        drawOutlinedText(g2, text, drawX, drawY, displayFont, fill, outline);
     }
 
     private double clamp01(double ratio) {
@@ -466,6 +542,30 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
     private String formatCounter(int value) {
         return value < 10 ? "0" + Math.max(0, value) : String.valueOf(Math.max(0, value));
+    }
+
+    private Font resolveDisplayFont(Font base, String text) {
+        if (text == null || text.isEmpty()) {
+            return base;
+        }
+        if (containsCjk(text)) {
+            return new Font(HUD_CHINESE_FONT.getFamily(), base.getStyle(), base.getSize());
+        }
+        return base;
+    }
+
+    private boolean containsCjk(String text) {
+        for (int i = 0; i < text.length(); i++) {
+            Character.UnicodeBlock block = Character.UnicodeBlock.of(text.charAt(i));
+            if (block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS
+                    || block == Character.UnicodeBlock.CJK_UNIFIED_IDEOGRAPHS_EXTENSION_A
+                    || block == Character.UnicodeBlock.CJK_COMPATIBILITY_IDEOGRAPHS
+                    || block == Character.UnicodeBlock.CJK_SYMBOLS_AND_PUNCTUATION
+                    || block == Character.UnicodeBlock.HALFWIDTH_AND_FULLWIDTH_FORMS) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private PaoPao findPlayer(Map<GameElement, List<ElementObj>> all) {
@@ -491,12 +591,15 @@ public class GameMainJPanel extends JPanel implements Runnable {
         g.setColor(new Color(0, 0, 0, 170));
         g.fillRect(0, 0, this.getWidth(), this.getHeight());
         g.setColor(Color.WHITE);
-        g.setFont(new Font("Consolas", Font.BOLD, 42));
-        g.drawString(GameRuntime.finishTitle, 220, 220);
-        g.setFont(new Font("Consolas", Font.BOLD, 28));
-        g.drawString("Survival: " + String.format("%.1f", GameRuntime.survivalTimeMs / 1000.0) + "s", 220, 280);
-        g.drawString("Kills: " + GameRuntime.killCount, 220, 320);
-        g.drawString("Press R To Restart", 220, 380);
+        Graphics2D g2 = (Graphics2D) g;
+        drawOutlinedText(g2, GameRuntime.finishTitle, 220, 220,
+                new Font(HUD_CHINESE_FONT.getFamily(), Font.BOLD, 42), Color.WHITE, Color.BLACK);
+        drawOutlinedText(g2, "生存: " + String.format("%.1f", GameRuntime.survivalTimeMs / 1000.0) + "秒", 220, 280,
+                new Font(HUD_CHINESE_FONT.getFamily(), Font.BOLD, 28), Color.WHITE, Color.BLACK);
+        drawOutlinedText(g2, "击杀: " + GameRuntime.killCount, 220, 320,
+                new Font(HUD_CHINESE_FONT.getFamily(), Font.BOLD, 28), Color.WHITE, Color.BLACK);
+        drawOutlinedText(g2, "按 R 重新开始", 220, 380,
+                new Font(HUD_CHINESE_FONT.getFamily(), Font.BOLD, 28), Color.WHITE, Color.BLACK);
     }
 
     private void addAll(List<ElementObj> actors, ElementObj[] objs) {

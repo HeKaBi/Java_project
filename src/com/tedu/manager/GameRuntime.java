@@ -21,7 +21,7 @@ public class GameRuntime {
     public static volatile int currentStage = 0;
     public static volatile int totalStages = 0;
     public static volatile boolean missionClear = false;
-    public static volatile String finishTitle = "MISSION FAILED";
+    public static volatile String finishTitle = "任务失败";
     public static volatile String bannerText = "";
     public static volatile long bannerUntilMs = 0L;
     public static volatile int battlefieldMaxBottom = DEFAULT_BATTLEFIELD_MAX_BOTTOM;
@@ -45,7 +45,7 @@ public class GameRuntime {
         currentStage = 0;
         totalStages = 0;
         missionClear = false;
-        finishTitle = "MISSION FAILED";
+        finishTitle = "任务失败";
         bannerText = "";
         bannerUntilMs = 0L;
         resetBattlefield();
@@ -64,7 +64,7 @@ public class GameRuntime {
         currentStage = 0;
         totalStages = 0;
         missionClear = false;
-        finishTitle = "MISSION FAILED";
+        finishTitle = "任务失败";
         bannerText = "";
         bannerUntilMs = 0L;
         resetBattlefield();

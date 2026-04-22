@@ -27,17 +27,17 @@ public class GameThread extends Thread {
     private static final String STAGE3_MAP_PATH = "image/images/\u80cc\u666f/mission3.png";
     private static final String[] ENEMY_TYPES = {"enemy1", "enemy2", "enemy3", "enemy4"};
     private static final StageConfig[] STAGES = {
-            new StageConfig("STAGE 1", STAGE1_MAP_PATH,
+            new StageConfig("第一关", STAGE1_MAP_PATH,
                     1200, 420, 950,
                     75, 6, 35,
                     1, 2, 2, 3,
                     3, 1, 24, "weapon2"),
-            new StageConfig("STAGE 2", STAGE2_MAP_PATH,
+            new StageConfig("第二关", STAGE2_MAP_PATH,
                     3600, 1200, 3050,
                     55, 8, 55,
                     2, 3, 3, 4,
                     4, 2, 36, "grenade"),
-            new StageConfig("STAGE 3", STAGE3_MAP_PATH,
+            new StageConfig("第三关", STAGE3_MAP_PATH,
                     3200, 1120, 2780,
                     48, 9, 60,
                     3, 4, 4, 5,
@@ -118,7 +118,7 @@ public class GameThread extends Thread {
         }
 
         if (stageIndex == 0) {
-            GameRuntime.showBanner(stage.title + "  |  A/D move  W double jump  E aim up  Ctrl crouch", 2600);
+            GameRuntime.showBanner(stage.title + "  |  A/D 移动  W 跳跃  E 上瞄  Ctrl 下蹲", 2600);
         } else {
             GameRuntime.showBanner(stage.title, 1800);
         }
@@ -209,7 +209,7 @@ public class GameThread extends Thread {
 
             GameRuntime.survivalTimeMs = System.currentTimeMillis() - GameRuntime.startTimeMs;
             if (plays.isEmpty()) {
-                GameRuntime.finishTitle = "MISSION FAILED";
+                GameRuntime.finishTitle = "任务失败";
                 GameRuntime.waitingRestart = true;
                 break;
             }
@@ -219,8 +219,8 @@ public class GameThread extends Thread {
                     loadStage(currentStageIndex + 1, gameTime, getPlayer());
                 } else {
                     GameRuntime.missionClear = true;
-                    GameRuntime.finishTitle = "MISSION COMPLETE";
-                    GameRuntime.showBanner("Final boss defeated", 1800);
+                    GameRuntime.finishTitle = "任务完成";
+                    GameRuntime.showBanner("最终首领已击败", 1800);
                     GameRuntime.waitingRestart = true;
                     break;
                 }
@@ -259,7 +259,7 @@ public class GameThread extends Thread {
             int footX = hostage.getX() + hostage.getW() / 2;
             hostage.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - hostage.getH());
             em.addElement(hostage, GameElement.HOSTAGE);
-            GameRuntime.showBanner("Found a hostage", 1400);
+            GameRuntime.showBanner("发现人质", 1400);
         }
         if (!bossSpawned && GameRuntime.stageDistance >= bossSpawnDistance) {
             bossSpawned = true;
@@ -268,7 +268,7 @@ public class GameThread extends Thread {
             int footX = boss.getX() + boss.getW() / 2;
             boss.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - boss.getH());
             em.addElement(boss, GameElement.BOSS);
-            GameRuntime.showBanner("Boss incoming", 1800);
+            GameRuntime.showBanner("首领来袭", 1800);
             return;
         }
         if (bossSpawned || (bosses != null && !bosses.isEmpty())) {
