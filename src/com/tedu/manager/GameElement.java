@@ -8,6 +8,7 @@ public enum GameElement {
     BOSS,
     HOSTAGE,
     ITEM,
+    CORPSE,
     PLAYFILE,
     ENEMYFILE,
     DIE

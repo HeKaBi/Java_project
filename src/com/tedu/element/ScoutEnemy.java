@@ -7,6 +7,7 @@ import com.tedu.manager.GameLoad;
 import com.tedu.manager.GameRuntime;
 import com.tedu.show.GameJFrame;
 import java.awt.Graphics;
+import java.util.Collections;
 import java.util.List;
 import javax.swing.ImageIcon;
 
@@ -100,8 +101,12 @@ public class ScoutEnemy extends ElementObj {
     @Override
     public void die() {
         AudioPlayer.playOnce("music/die.wav");
-        ElementObj effect = new Effect().createElement((this.getX() - 16) + "," + (this.getY() - 8) + ",effect,96,96");
-        em.addElement(effect, GameElement.DIE);
+        ImageIcon corpseFrame = currentFrame == null ? this.getIcon() : currentFrame;
+        ElementObj corpse = new Corpse().configure(
+                this.getX(), this.getY(), this.getW(), this.getH(),
+                Collections.emptyList(), corpseFrame,
+                faceRight, false, 1.0, 1);
+        em.addElement(corpse, GameElement.CORPSE);
     }
 
     public boolean hurt(int damage) {

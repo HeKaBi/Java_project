@@ -11,7 +11,7 @@ import java.util.List;
 import javax.swing.ImageIcon;
 
 public class Grenade extends ElementObj {
-    private static final ImageIcon GRENADE_ICON = GameLoad.loadImage("image/images/\u5b50\u5f39/bomb2.png");
+    private static final ImageIcon GRENADE_ICON = GameLoad.loadImage("image/images/\u5b50\u5f39/image583.png");
     private static final int HITBOX = 18;
     private static final int TERRAIN_CONTACT_MARGIN = 1;
 
@@ -19,7 +19,7 @@ public class Grenade extends ElementObj {
     private double vx = 8.0;
     private double vy = -10.5;
     private double gravity = 0.55;
-    private int damage = 3;
+    private int damage = 2;
     private int blastRadius = 110;
     private boolean shouldExplode = false;
 

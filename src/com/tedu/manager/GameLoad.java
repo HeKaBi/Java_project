@@ -14,6 +14,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
@@ -28,6 +29,7 @@ public class GameLoad {
     private static final int PLAYER_SPAWN_X = 300;
     private static final Map<String, Class<?>> objMap = new HashMap<>();
     private static final Map<String, List<ImageIcon>> frameCache = new HashMap<>();
+    private static final List<File> SEARCH_ROOTS = Collections.unmodifiableList(new ArrayList<>(discoverSearchRoots()));
 
     public static Map<String, ImageIcon> imgMap = new HashMap<>();
     public static Map<String, List<ImageIcon>> imgMaps;
@@ -90,6 +92,10 @@ public class GameLoad {
 
     public static ImageIcon loadImage(String resourcePath) {
         return loadIcon(resourcePath);
+    }
+
+    public static File resolveResourceFile(String resourcePath) {
+        return resolveFile(resourcePath);
     }
 
     public static List<ImageIcon> loadFrames(String... resourcePaths) {
@@ -244,20 +250,24 @@ public class GameLoad {
         } catch (IOException e) {
             e.printStackTrace();
         }
-        try {
-            java.awt.image.BufferedImage fileImage = ImageIO.read(new File(path));
-            if (fileImage != null) {
-                return new ImageIcon(fileImage);
+        File file = resolveFile(path);
+        if (file != null && file.isFile()) {
+            try {
+                java.awt.image.BufferedImage fileImage = ImageIO.read(file);
+                if (fileImage != null) {
+                    return new ImageIcon(fileImage);
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        } catch (IOException e) {
-            e.printStackTrace();
         }
         return null;
     }
 
     private static InputStream openStream(String resourcePath) throws IOException {
         ClassLoader classLoader = GameLoad.class.getClassLoader();
-        InputStream stream = classLoader.getResourceAsStream(resourcePath);
+        String classpathPath = resourcePath.startsWith("/") ? resourcePath.substring(1) : resourcePath;
+        InputStream stream = classLoader.getResourceAsStream(classpathPath);
         if (stream != null) {
             return stream;
         }
@@ -269,37 +279,162 @@ public class GameLoad {
     }
 
     private static File resolveFile(String resourcePath) {
-        File file = new File(resourcePath);
-        if (file.exists()) {
-            return file;
+        if (resourcePath == null) {
+            return null;
         }
-        File sourceFile = new File("src", resourcePath);
-        if (sourceFile.exists()) {
-            return sourceFile;
+        String normalizedPath = resourcePath.trim()
+                .replace('/', File.separatorChar)
+                .replace('\\', File.separatorChar);
+        if (normalizedPath.isEmpty()) {
+            return null;
+        }
+        File directFile = new File(normalizedPath);
+        if (directFile.exists()) {
+            return directFile;
+        }
+        boolean alreadyStartsWithSrc = normalizedPath.equals("src")
+                || normalizedPath.startsWith("src" + File.separator);
+        for (File searchRoot : SEARCH_ROOTS) {
+            File candidate = new File(searchRoot, normalizedPath);
+            if (candidate.exists()) {
+                return candidate;
+            }
+            if (!alreadyStartsWithSrc) {
+                File sourceCandidate = new File(new File(searchRoot, "src"), normalizedPath);
+                if (sourceCandidate.exists()) {
+                    return sourceCandidate;
+                }
+            }
         }
         return null;
     }
 
+    private static Set<File> discoverSearchRoots() {
+        LinkedHashSet<File> roots = new LinkedHashSet<>();
+        addSearchRoots(new File(System.getProperty("user.dir", ".")), roots);
+        addNearbyProjectRoots(new File(System.getProperty("user.dir", ".")), roots);
+        addSearchRoots(resolveCodeSourceDirectory(), roots);
+        addNearbyProjectRoots(resolveCodeSourceDirectory(), roots);
+        for (File classPathEntry : resolveClassPathEntries()) {
+            addSearchRoots(classPathEntry, roots);
+            addNearbyProjectRoots(classPathEntry, roots);
+        }
+        return roots;
+    }
+
+    private static void addSearchRoots(File start, Set<File> roots) {
+        File current = normalizeFile(start);
+        while (current != null) {
+            roots.add(current);
+            current = current.getParentFile();
+        }
+    }
+
+    private static void addNearbyProjectRoots(File start, Set<File> roots) {
+        File current = normalizeFile(start);
+        for (int depth = 0; current != null && depth < 3; depth++) {
+            File[] children = current.listFiles(File::isDirectory);
+            if (children != null) {
+                for (File child : children) {
+                    File normalizedChild = normalizeFile(child);
+                    if (looksLikeProjectRoot(normalizedChild)) {
+                        roots.add(normalizedChild);
+                    }
+                }
+            }
+            current = current.getParentFile();
+        }
+    }
+
+    private static File resolveCodeSourceDirectory() {
+        try {
+            java.net.URL location = GameLoad.class.getProtectionDomain().getCodeSource().getLocation();
+            if (location == null) {
+                return null;
+            }
+            File file = new File(location.toURI());
+            return file.isFile() ? file.getParentFile() : file;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static List<File> resolveClassPathEntries() {
+        String classPath = System.getProperty("java.class.path", "");
+        if (classPath == null || classPath.isEmpty()) {
+            return Collections.emptyList();
+        }
+        String[] entries = classPath.split(java.io.File.pathSeparator);
+        List<File> files = new ArrayList<>(entries.length);
+        for (String entry : entries) {
+            if (entry == null || entry.isBlank()) {
+                continue;
+            }
+            files.add(new File(entry));
+        }
+        return files;
+    }
+
+    private static boolean looksLikeProjectRoot(File directory) {
+        if (directory == null || !directory.isDirectory()) {
+            return false;
+        }
+        File srcDir = new File(directory, "src");
+        if (!srcDir.isDirectory()) {
+            return false;
+        }
+        File imageDir = new File(directory, "image");
+        File musicDir = new File(directory, "music");
+        File ideaDir = new File(directory, ".idea");
+        File gameData = new File(directory, "src" + File.separator + "com"
+                + File.separator + "tedu" + File.separator + "text" + File.separator + "GameData.pro");
+        File[] moduleFiles = directory.listFiles(file -> file.isFile() && file.getName().endsWith(".iml"));
+        return imageDir.isDirectory()
+                || musicDir.isDirectory()
+                || ideaDir.isDirectory()
+                || gameData.isFile()
+                || (moduleFiles != null && moduleFiles.length > 0);
+    }
+
+    private static File normalizeFile(File file) {
+        if (file == null) {
+            return null;
+        }
+        try {
+            return file.getCanonicalFile();
+        } catch (IOException e) {
+            return file.getAbsoluteFile();
+        }
+    }
+
     private static int extractTrailingNumber(String fileName) {
-        int dotIndex = fileName.lastIndexOf('.');
-        int end = dotIndex >= 0 ? dotIndex : fileName.length();
+        String normalizedName = stripCopySuffix(fileName);
+        int dotIndex = normalizedName.lastIndexOf('.');
+        int end = dotIndex >= 0 ? dotIndex : normalizedName.length();
         int index = end - 1;
-        while (index >= 0 && !Character.isDigit(fileName.charAt(index))) {
+        while (index >= 0 && !Character.isDigit(normalizedName.charAt(index))) {
             index--;
         }
         if (index < 0) {
             return Integer.MAX_VALUE;
         }
         int numberEnd = index + 1;
-        while (index >= 0 && Character.isDigit(fileName.charAt(index))) {
+        while (index >= 0 && Character.isDigit(normalizedName.charAt(index))) {
             index--;
         }
         int numberStart = index + 1;
         try {
-            return Integer.parseInt(fileName.substring(numberStart, numberEnd));
+            return Integer.parseInt(normalizedName.substring(numberStart, numberEnd));
         } catch (NumberFormatException e) {
             return Integer.MAX_VALUE;
         }
+    }
+
+    private static String stripCopySuffix(String fileName) {
+        if (fileName == null) {
+            return "";
+        }
+        return fileName.replaceFirst("\\s*\\(\\d+\\)(?=\\.[^.]+$)", "");
     }
 
     private static byte[] readBytes(InputStream stream) throws IOException {

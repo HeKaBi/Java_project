@@ -116,6 +116,7 @@ public class GameJFrame extends JFrame {
         bindKey(component, listener, KeyEvent.VK_W, "w");
         bindKey(component, listener, KeyEvent.VK_S, "s");
         bindKey(component, listener, KeyEvent.VK_E, "e");
+        bindKey(component, listener, KeyEvent.VK_Q, "q");
         bindKey(component, listener, KeyEvent.VK_J, "j");
         bindKey(component, listener, KeyEvent.VK_L, "l");
         bindKey(component, listener, KeyEvent.VK_U, "u");
@@ -123,8 +124,10 @@ public class GameJFrame extends JFrame {
         bindKey(component, listener, KeyEvent.VK_ENTER, "enter");
         bindKey(component, listener, KeyEvent.VK_1, "1");
         bindKey(component, listener, KeyEvent.VK_2, "2");
+        bindKey(component, listener, KeyEvent.VK_3, "3");
         bindKey(component, listener, KeyEvent.VK_NUMPAD1, "num1");
         bindKey(component, listener, KeyEvent.VK_NUMPAD2, "num2");
+        bindKey(component, listener, KeyEvent.VK_NUMPAD3, "num3");
         bindKey(component, listener, KeyEvent.VK_R, "r");
     }
 

@@ -8,6 +8,7 @@ import com.tedu.manager.GameRuntime;
 import com.tedu.show.GameJFrame;
 import java.awt.Graphics;
 import java.awt.Rectangle;
+import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 import javax.swing.ImageIcon;
@@ -15,11 +16,26 @@ import javax.swing.ImageIcon;
 public class Enemy extends ElementObj {
     private static final int HITBOX_W = 52;
     private static final int HITBOX_H = 72;
+    private static final int CORPSE_FRAME_GAP = 8;
     private static final int MAX_STEP_UP = 12;
     private static final int MAX_SNAP_DOWN = 8;
     private static final int GROUND_PROBE_INSET = 5;
     private static final int PLATFORM_EDGE_MARGIN = 6;
     private static final int WALL_BODY_MARGIN = 4;
+    private static final int WALL_STEP_DETECT_RADIUS = 4;
+    private static final int MIN_WALL_STEP_HEIGHT = 10;
+    private static final List<ImageIcon> DIE1_FRAMES =
+            GameLoad.loadFramesFromDirectory("image/images/Enemy/die/die1");
+    private static final List<ImageIcon> DIE2_FRAMES =
+            GameLoad.loadFramesFromDirectory("image/images/Enemy/die/die2");
+    private static final List<ImageIcon> DIE3_FRAMES =
+            GameLoad.loadFramesFromDirectory("image/images/Enemy/die/die3");
+    private static final List<ImageIcon> DIE4_FRAMES =
+            GameLoad.loadFramesFromDirectory("image/images/Enemy/die/die4");
+    private static final List<ImageIcon> DIE5_FRAMES =
+            GameLoad.loadFramesFromDirectory("image/images/Enemy/enemy5/die");
+    private static final List<ImageIcon> DIE6_FRAMES =
+            GameLoad.loadFramesFromDirectory("image/images/Enemy/enemy6/die");
 
     private final Random random = new Random();
     private final ElementManager em = ElementManager.getManager();
@@ -39,7 +55,7 @@ public class Enemy extends ElementObj {
     private int attackTargetCenterX = Integer.MIN_VALUE;
     private int attackTargetCenterY = Integer.MIN_VALUE;
     private int attackTargetDistanceX = 150;
-    private ImageIcon currentFrame = firstFrame(EnemyType.ENEMY1.frames);
+    private ImageIcon currentFrame = firstFrame(EnemyType.ENEMY1.resolveMoveFrames());
 
     @Override
     public void showElement(Graphics g) {
@@ -47,8 +63,9 @@ public class Enemy extends ElementObj {
         if (frame == null) {
             return;
         }
-        int drawW = frame.getIconWidth();
-        int drawH = frame.getIconHeight();
+        double renderScale = type.resolveRenderScale();
+        int drawW = Math.max(1, (int) Math.round(frame.getIconWidth() * renderScale));
+        int drawH = Math.max(1, (int) Math.round(frame.getIconHeight() * renderScale));
         int drawX = this.getX() + (this.getW() - drawW) / 2;
         int drawY = this.getY() + this.getH() - drawH;
         // Enemy source frames are authored facing left; flip only when logically facing right.
@@ -100,9 +117,9 @@ public class Enemy extends ElementObj {
             clearAttackTarget();
         }
         if (attacking && attackStartTime >= 0) {
-            currentFrame = selectAttackFrame(type.frames, gameTime - attackStartTime, type.attackFrameGap);
+            currentFrame = selectAttackFrame(type.resolveAttackFrames(), gameTime - attackStartTime, type.attackFrameGap);
         } else {
-            currentFrame = selectLoopFrame(type.frames, gameTime, type.frameGap);
+            currentFrame = selectLoopFrame(type.resolveMoveFrames(), gameTime, type.frameGap);
         }
         if (currentFrame != null) {
             this.setIcon(currentFrame);
@@ -134,7 +151,7 @@ public class Enemy extends ElementObj {
         this.type = EnemyType.fromKey(split.length > 2 ? split[2] : EnemyType.ENEMY1.key);
         this.speed = split.length > 3 ? Integer.parseInt(split[3]) : 2;
         this.hp = split.length > 4 ? Integer.parseInt(split[4]) : 2;
-        this.speed = Math.max(1, speed + type.speedOffset);
+        this.speed = Math.max(type.resolveMinimumSpeed(), speed + type.speedOffset);
         this.hp = Math.max(1, hp + type.hpOffset);
         this.setW(HITBOX_W);
         this.setH(HITBOX_H);
@@ -149,7 +166,7 @@ public class Enemy extends ElementObj {
         this.countedKill = false;
         this.attackFaceRight = false;
         clearAttackTarget();
-        this.currentFrame = firstFrame(type.frames);
+        this.currentFrame = firstFrame(type.resolveMoveFrames());
         if (currentFrame != null) {
             this.setIcon(currentFrame);
         }
@@ -159,8 +176,12 @@ public class Enemy extends ElementObj {
     @Override
     public void die() {
         AudioPlayer.playOnce("music/die.wav");
-        ElementObj effect = new Effect().createElement((this.getX() - 16) + "," + (this.getY() - 8) + ",effect,96,96");
-        em.addElement(effect, GameElement.DIE);
+        ImageIcon corpseFrame = currentFrame == null ? this.getIcon() : currentFrame;
+        ElementObj corpse = new Corpse().configure(
+                this.getX(), this.getY(), this.getW(), this.getH(),
+                resolveCorpseFrames(), corpseFrame,
+                faceRight, false, type.resolveRenderScale(), CORPSE_FRAME_GAP);
+        em.addElement(corpse, GameElement.CORPSE);
     }
 
     public boolean hurt(int damage) {
@@ -178,6 +199,25 @@ public class Enemy extends ElementObj {
         }
         this.setLive(false);
         return true;
+    }
+
+    private List<ImageIcon> resolveCorpseFrames() {
+        switch (type) {
+            case ENEMY1:
+                return DIE1_FRAMES;
+            case ENEMY2:
+                return DIE2_FRAMES;
+            case ENEMY3:
+                return DIE3_FRAMES;
+            case ENEMY4:
+                return DIE4_FRAMES;
+            case ENEMY5:
+                return DIE5_FRAMES;
+            case ENEMY6:
+                return DIE6_FRAMES;
+            default:
+                return Collections.emptyList();
+        }
     }
 
     private void spawnProjectile() {
@@ -231,7 +271,7 @@ public class Enemy extends ElementObj {
         PaoPao player = (PaoPao) playerObj;
         long oldHurtTime = player.getHurtTime();
         player.hurt(gameTime, type.damage);
-        if (player.getHurtTime() != oldHurtTime) {
+        if (player.getHurtTime() != oldHurtTime && player.getHp() > 0) {
             AudioPlayer.playOnce("music/die.wav");
         }
     }
@@ -250,10 +290,11 @@ public class Enemy extends ElementObj {
     }
 
     private long resolveAttackDuration() {
-        if (type.frames == null || type.frames.isEmpty()) {
+        List<ImageIcon> frames = type.resolveAttackFrames();
+        if (frames.isEmpty()) {
             return type.attackDuration;
         }
-        long minimumDuration = (long) Math.max(0, type.frames.size() - 1) * Math.max(1, type.attackFrameGap);
+        long minimumDuration = (long) Math.max(0, frames.size() - 1) * Math.max(1, type.attackFrameGap);
         return Math.max(type.attackDuration, minimumDuration);
     }
 
@@ -289,10 +330,10 @@ public class Enemy extends ElementObj {
         for (int candidateX = currentX + step; candidateX != desiredX + step; candidateX += step) {
             int frontX = candidateX + (step > 0 ? this.getW() - GROUND_PROBE_INSET : GROUND_PROBE_INSET);
             int wallTopBottom = GameRuntime.getBattlefieldWallTopBottomAt(frontX);
-            if (wallTopBottom > 0 && actorBottom > wallTopBottom - WALL_BODY_MARGIN) {
+            int frontSurface = getWalkSupportBottomAt(frontX, actorBottom);
+            if (shouldBlockByWall(frontX, actorBottom, frontSurface, wallTopBottom)) {
                 break;
             }
-            int frontSurface = getWalkSupportBottomAt(frontX, actorBottom);
             if (actorBottom - frontSurface > MAX_STEP_UP) {
                 break;
             }
@@ -328,6 +369,22 @@ public class Enemy extends ElementObj {
             }
         }
         return bestBottom;
+    }
+
+    private boolean shouldBlockByWall(int frontX, int actorBottom, int frontSurface, int wallTopBottom) {
+        if (wallTopBottom <= 0) {
+            return false;
+        }
+        int wallHeight = frontSurface - wallTopBottom;
+        if (wallHeight <= WALL_BODY_MARGIN) {
+            return false;
+        }
+        int leftSurface = GameRuntime.getBattlefieldMaxBottomAt(frontX - WALL_STEP_DETECT_RADIUS);
+        int rightSurface = GameRuntime.getBattlefieldMaxBottomAt(frontX + WALL_STEP_DETECT_RADIUS);
+        if (Math.abs(rightSurface - leftSurface) < MIN_WALL_STEP_HEIGHT) {
+            return false;
+        }
+        return actorBottom > wallTopBottom - WALL_BODY_MARGIN;
     }
 
     private boolean isWithinPlatformSpan(PlatformObj platform, int footX) {
@@ -401,6 +458,13 @@ public class Enemy extends ElementObj {
         return frames == null || frames.isEmpty() ? null : frames.get(0);
     }
 
+    private static List<ImageIcon> freezeFrames(List<ImageIcon> frames) {
+        if (frames == null || frames.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return Collections.unmodifiableList(frames);
+    }
+
     private enum EnemyType {
         ENEMY1("enemy1",
                 GameLoad.loadFrames(
@@ -418,7 +482,7 @@ public class Enemy extends ElementObj {
                 0, 0,
                 120, 180, 36,
                 20, 72, 110, 150,
-                5, 12, 1,
+                8, 16, 1,
                 0.0, 0.45, true,
                 18, 24, -2.0, 2.0,
                 false, 0, 96),
@@ -432,9 +496,9 @@ public class Enemy extends ElementObj {
                 1, 1,
                 6, 14, 18,
                 18, 42, 90, 120,
-                7, 14, 1,
+                10, 18, 1,
                 0.0, 0.0, false,
-                14, 18, -1.0, 1.0,
+                18, 18, -1.0, 1.0,
                 true, 46, 0),
         ENEMY3("enemy3",
                 GameLoad.loadFrames(
@@ -450,8 +514,8 @@ public class Enemy extends ElementObj {
                 0, 0,
                 130, 190, 42,
                 20, 70, 95, 135,
-                5, 12, 1,
-                7.0, 0.12, true,
+                8, 16, 1,
+                5.0, 0.12, true,
                 20, 26, -2.5, 3.0,
                 false, 0, 110),
         ENEMY4("enemy4",
@@ -471,13 +535,36 @@ public class Enemy extends ElementObj {
                 1, 0,
                 110, 160, 52,
                 18, 60, 75, 110,
-                5, 12, 1,
-                11.0, 0.0, false,
+                9, 16, 1,
+                7.0, 0.0, false,
                 18, 18, -3.0, 3.0,
-                false, 0, 120);
+                false, 0, 120),
+        ENEMY5("enemy5",
+                GameLoad.loadFramesFromDirectory("image/images/Enemy/enemy5/move"),
+                GameLoad.loadFramesFromDirectory("image/images/Enemy/enemy5/attack"),
+                "image/images/Enemy/enemy4/bomb1.png",
+                2, 6,
+                90, 150, 48,
+                8, 18, 70, 105,
+                8, 16, 2,
+                12.0, 0.0, false,
+                18, 16, -2.0, 2.0,
+                false, 0, 128),
+        ENEMY6("enemy6",
+                GameLoad.loadFramesFromDirectory("image/images/Enemy/enemy6/attack"),
+                GameLoad.loadFramesFromDirectory("image/images/Enemy/enemy6/attack"),
+                "image/images/Enemy/enemy4/bomb1.png",
+                -2, 4,
+                96, 140, 80,
+                30, 150, 120, 170,
+                10, 18, 2,
+                4.5, 0.0, false,
+                30, 24, -1.5, 1.5,
+                false, 0, 112);
 
         private final String key;
-        private final List<ImageIcon> frames;
+        private final List<ImageIcon> moveFrames;
+        private final List<ImageIcon> attackFrames;
         private final String projectilePath;
         private final int speedOffset;
         private final int hpOffset;
@@ -511,8 +598,37 @@ public class Enemy extends ElementObj {
                   int projectileSpawnOffsetY, int verticalAimDivisor,
                   double minProjectileVy, double maxProjectileVy,
                   boolean melee, int meleeReach, int impactEffectSize) {
+            this(key, frames, frames, projectilePath,
+                    speedOffset, hpOffset,
+                    rangeMin, rangeMax, attackRangePadding,
+                    attackWindup, attackDuration, cooldownMin, cooldownMax,
+                    frameGap, attackFrameGap, damage,
+                    projectileSpeed, projectileGravity, stopOnGround,
+                    projectileSpawnOffsetY, verticalAimDivisor,
+                    minProjectileVy, maxProjectileVy,
+                    melee, meleeReach, impactEffectSize);
+        }
+
+        EnemyType(String key, List<ImageIcon> moveFrames, List<ImageIcon> attackFrames, String projectilePath,
+                  int speedOffset, int hpOffset,
+                  int rangeMin, int rangeMax, int attackRangePadding,
+                  int attackWindup, int attackDuration, int cooldownMin, int cooldownMax,
+                  int frameGap, int attackFrameGap, int damage,
+                  double projectileSpeed, double projectileGravity, boolean stopOnGround,
+                  int projectileSpawnOffsetY, int verticalAimDivisor,
+                  double minProjectileVy, double maxProjectileVy,
+                  boolean melee, int meleeReach, int impactEffectSize) {
             this.key = key;
-            this.frames = frames;
+            List<ImageIcon> frozenMoveFrames = freezeFrames(moveFrames);
+            List<ImageIcon> frozenAttackFrames = freezeFrames(attackFrames);
+            if (frozenMoveFrames.isEmpty()) {
+                frozenMoveFrames = frozenAttackFrames;
+            }
+            if (frozenAttackFrames.isEmpty()) {
+                frozenAttackFrames = frozenMoveFrames;
+            }
+            this.moveFrames = frozenMoveFrames;
+            this.attackFrames = frozenAttackFrames;
             this.projectilePath = projectilePath;
             this.speedOffset = speedOffset;
             this.hpOffset = hpOffset;
@@ -538,6 +654,14 @@ public class Enemy extends ElementObj {
             this.impactEffectSize = impactEffectSize;
         }
 
+        private List<ImageIcon> resolveMoveFrames() {
+            return moveFrames.isEmpty() ? attackFrames : moveFrames;
+        }
+
+        private List<ImageIcon> resolveAttackFrames() {
+            return attackFrames.isEmpty() ? resolveMoveFrames() : attackFrames;
+        }
+
         private static EnemyType fromKey(String key) {
             if (key != null) {
                 for (EnemyType value : values()) {
@@ -547,6 +671,20 @@ public class Enemy extends ElementObj {
                 }
             }
             return ENEMY1;
+        }
+
+        private int resolveMinimumSpeed() {
+            return this == ENEMY6 ? 0 : 1;
+        }
+
+        private double resolveRenderScale() {
+            if (this == ENEMY5) {
+                return 0.48;
+            }
+            if (this == ENEMY6) {
+                return 0.78;
+            }
+            return 1.0;
         }
     }
 }

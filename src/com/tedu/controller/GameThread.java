@@ -17,25 +17,39 @@ import com.tedu.manager.GameElement;
 import com.tedu.manager.GameLoad;
 import com.tedu.manager.GameRuntime;
 import com.tedu.show.GameJFrame;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
 public class GameThread extends Thread {
-    private static final String STAGE_ONE_MAP_PATH = "image/images/\u80cc\u666f/mission1.png";
-    private static final String STAGE_TWO_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
-    private static final String[] ENEMY_TYPES = {"enemy1", "enemy2", "enemy3", "enemy4"};
+    private static final String STAGE1_MAP_PATH = "image/images/\u80cc\u666f/mission1.png";
+    private static final String STAGE2_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
+    private static final String STAGE3_MAP_PATH = "image/images/\u80cc\u666f/mission3.png";
+    private static final String[] STAGE12_ENEMY_TYPES = {"enemy1", "enemy2", "enemy3", "enemy4", "enemy5", "enemy6"};
+    private static final String[] STAGE3_ENEMY_TYPES = {"enemy2", "enemy3", "enemy4", "enemy5", "enemy6"};
+    private static final String[] ELITE_ENEMY_TYPES = {"enemy5", "enemy6"};
+    private static final int EDGE_SPAWN_MARGIN = 84;
+    private static final int HOSTAGE_GUARD_OFFSET = 138;
+    private static final int REGULAR_ELITE_CHANCE = 8;
+    private static final int HOSTAGE_ELITE_CHANCE = 18;
     private static final StageConfig[] STAGES = {
-            new StageConfig("STAGE 1", STAGE_ONE_MAP_PATH,
-                    2600, 900, 2050,
-                    75, 6, 35,
-                    1, 2, 2, 3,
-                3, 1, 24, "boss1", "weapon2"),
-            new StageConfig("STAGE 2", STAGE_TWO_MAP_PATH,
-                    1100, 420, 930,
-                    55, 8, 55,
-                    2, 3, 3, 4,
-                4, 2, 36, "boss2", "grenade")
+        new StageConfig("STAGE 1", STAGE1_MAP_PATH,
+                1200, 420, 950,
+                90, 4, 35,
+                1, 2, 2, 3,
+                3, 1, 24, "boss1", "weapon2", STAGE12_ENEMY_TYPES),
+        new StageConfig("STAGE 2", STAGE2_MAP_PATH,
+                3600, 1200, 3050,
+                72, 5, 55,
+                2, 3, 3, 4,
+                4, 2, 36, "boss2", "grenade", STAGE12_ENEMY_TYPES),
+        new StageConfig("STAGE 3", STAGE3_MAP_PATH,
+                3200, 1120, 2780,
+                66, 6, 60,
+                3, 4, 4, 5,
+                5, 3, 48, "boss3", "weapon3", STAGE3_ENEMY_TYPES)
     };
 
     private final ElementManager em;
@@ -43,9 +57,13 @@ public class GameThread extends Thread {
 
     private long enemyAddTime;
     private boolean hostageSpawned;
+    private boolean hostageRescued;
     private boolean bossSpawned;
     private boolean missionResolved;
     private int currentStageIndex;
+    private boolean lastEnemySpawnFromRight;
+    private String stageHostageOrderType = "order0";
+    private String pendingObjectiveBanner = "";
 
     public GameThread() {
         em = ElementManager.getManager();
@@ -83,6 +101,7 @@ public class GameThread extends Thread {
         em.init();
         enemyAddTime = 0L;
         hostageSpawned = false;
+        hostageRescued = false;
         bossSpawned = false;
         missionResolved = false;
         currentStageIndex = 0;
@@ -112,7 +131,7 @@ public class GameThread extends Thread {
         }
 
         if (stageIndex == 0) {
-            GameRuntime.showBanner(stage.title + "  |  A/D move  W double jump  E aim up  Ctrl crouch", 2600);
+            GameRuntime.showBanner(stage.title + "  |  A/D move  W double jump  Sx2 drop  Q cycle arms", 2600);
         } else {
             GameRuntime.showBanner(stage.title, 1800);
         }
@@ -150,6 +169,7 @@ public class GameThread extends Thread {
         clearElements(GameElement.BOSS);
         clearElements(GameElement.HOSTAGE);
         clearElements(GameElement.ITEM);
+        clearElements(GameElement.CORPSE);
         clearElements(GameElement.PLAYFILE);
         clearElements(GameElement.ENEMYFILE);
         clearElements(GameElement.DIE);
@@ -158,8 +178,12 @@ public class GameThread extends Thread {
     private void resetStageState(long gameTime) {
         enemyAddTime = gameTime;
         hostageSpawned = false;
+        hostageRescued = false;
         bossSpawned = false;
         missionResolved = false;
+        stageHostageOrderType = random.nextBoolean() ? "order0" : "order1";
+        lastEnemySpawnFromRight = random.nextBoolean();
+        pendingObjectiveBanner = "";
         GameRuntime.worldScrollX = 0;
     }
 
@@ -203,21 +227,35 @@ public class GameThread extends Thread {
 
             GameRuntime.survivalTimeMs = System.currentTimeMillis() - GameRuntime.startTimeMs;
             if (plays.isEmpty()) {
+                if (hasLiveElements(GameElement.DIE)) {
+                    gameTime++;
+                    try {
+                        sleep(10);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    continue;
+                }
                 GameRuntime.finishTitle = "MISSION FAILED";
                 GameRuntime.waitingRestart = true;
                 break;
             }
-            if (bossSpawned && !missionResolved && bosses.isEmpty()) {
+            boolean bossAlive = hasLiveElements(GameElement.BOSS);
+            boolean enemyAlive = hasLiveElements(GameElement.ENEMY);
+            if (bossSpawned && !missionResolved && !bossAlive && hostageRescued && !enemyAlive) {
                 missionResolved = true;
+                pendingObjectiveBanner = "";
                 if (hasNextStage()) {
                     loadStage(currentStageIndex + 1, gameTime, getPlayer());
                 } else {
                     GameRuntime.missionClear = true;
                     GameRuntime.finishTitle = "MISSION COMPLETE";
-                    GameRuntime.showBanner("Final boss defeated", 1800);
+                    GameRuntime.showBanner("All objectives complete", 1800);
                     GameRuntime.waitingRestart = true;
                     break;
                 }
+            } else if (bossSpawned && !missionResolved && !bossAlive) {
+                showPendingObjectives(enemyAlive);
             }
 
             gameTime++;
@@ -249,16 +287,19 @@ public class GameThread extends Thread {
         int bossSpawnDistance = stage.resolveBossSpawnDistance(GameRuntime.stageLength);
         if (!hostageSpawned && GameRuntime.stageDistance >= hostageSpawnDistance) {
             hostageSpawned = true;
-            ElementObj hostage = new Hostage().createElement((GameJFrame.GameX + 160) + ",0," + stage.hostageRewardType);
+            ElementObj hostage = new Hostage().createElement(
+                    (GameJFrame.GameX + 160) + ",0," + stage.hostageRewardType + "," + stageHostageOrderType);
             int footX = hostage.getX() + hostage.getW() / 2;
             hostage.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - hostage.getH());
             em.addElement(hostage, GameElement.HOSTAGE);
+            spawnHostageGuardPack(stage, hostage);
             GameRuntime.showBanner("Found a hostage", 1400);
         }
         if (!bossSpawned && GameRuntime.stageDistance >= bossSpawnDistance) {
             bossSpawned = true;
             GameRuntime.stageDistance = GameRuntime.stageLength;
-            ElementObj boss = new Boss().createElement((GameJFrame.GameX + 220) + ",0," + stage.bossHp + "," + stage.bossVariant);
+            ElementObj boss = new Boss().createElement(
+                    (GameJFrame.GameX + 220) + ",0," + stage.resolveBossHp(currentStageIndex) + "," + stage.bossVariant);
             int footX = boss.getX() + boss.getW() / 2;
             boss.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - boss.getH());
             em.addElement(boss, GameElement.BOSS);
@@ -272,26 +313,29 @@ public class GameThread extends Thread {
     }
 
     private void spawnEnemy(long gameTime, List<ElementObj> enemys, StageConfig stage) {
-        if (gameTime - enemyAddTime < stage.enemyInterval) {
+        if (gameTime - enemyAddTime < stage.resolveEnemyInterval(currentStageIndex)) {
             return;
         }
-        if (enemys.size() >= stage.maxEnemies) {
+        if (enemys.size() >= stage.resolveMaxEnemies(currentStageIndex)) {
             return;
         }
         enemyAddTime = gameTime;
-        int spawnX = GameJFrame.GameX + 20;
-        int bottom = randomBattlefieldBottom(spawnX);
-        ElementObj enemyObj = GameLoad.getObj("enemy");
-        if (enemyObj == null) {
-            return;
+        String enemyType = resolveNextEnemyType(stage);
+        int spawnX = resolveEnemySpawnX();
+        spawnEnemyAt(stage, enemyType, spawnX);
+    }
+
+    private String resolveNextEnemyType(StageConfig stage) {
+        String[] eliteTypes = collectEnemyTypes(stage.enemyTypes, true);
+        String[] commonTypes = collectEnemyTypes(stage.enemyTypes, false);
+        int eliteChance = hostageSpawned && !hostageRescued ? HOSTAGE_ELITE_CHANCE : REGULAR_ELITE_CHANCE;
+        if (eliteTypes.length > 0 && random.nextInt(100) < eliteChance) {
+            return eliteTypes[random.nextInt(eliteTypes.length)];
         }
-        int speed = randomBetween(stage.enemySpeedMin, stage.enemySpeedMax);
-        int hp = randomBetween(stage.enemyHpMin, stage.enemyHpMax);
-        String enemyType = ENEMY_TYPES[random.nextInt(ENEMY_TYPES.length)];
-        ElementObj enemy = enemyObj.createElement(
-                spawnX + "," + (bottom - 72) + "," + enemyType + "," + speed + "," + hp);
-        enemy.setY(bottom - enemy.getH());
-        em.addElement(enemy, GameElement.ENEMY);
+        if (commonTypes.length > 0) {
+            return commonTypes[random.nextInt(commonTypes.length)];
+        }
+        return stage.randomEnemyType(random);
     }
 
     private int randomBetween(int min, int max) {
@@ -303,6 +347,82 @@ public class GameThread extends Thread {
 
     private int randomBattlefieldBottom(int screenX) {
         return GameRuntime.getBattlefieldMaxBottomAt(screenX);
+    }
+
+    private void spawnHostageGuardPack(StageConfig stage, ElementObj hostage) {
+        if (hostage == null) {
+            return;
+        }
+        String[] eliteTypes = collectEnemyTypes(stage.enemyTypes, true);
+        if (eliteTypes.length == 0) {
+            return;
+        }
+        boolean leftFirst = random.nextBoolean();
+        int guardCount = Math.min(2, Math.max(1, eliteTypes.length));
+        for (int i = 0; i < guardCount; i++) {
+            String enemyType = eliteTypes[i % eliteTypes.length];
+            int direction = ((i % 2 == 0) == leftFirst) ? -1 : 1;
+            int offset = HOSTAGE_GUARD_OFFSET + randomBetween(0, 42);
+            int spawnX = hostage.getCenterX() + direction * offset;
+            spawnX = Math.max(20, Math.min(GameJFrame.GameX - 72, spawnX));
+            spawnEnemyAt(stage, enemyType, spawnX);
+        }
+    }
+
+    private void spawnEnemyAt(StageConfig stage, String enemyType, int spawnX) {
+        ElementObj enemyObj = GameLoad.getObj("enemy");
+        if (enemyObj == null || enemyType == null || enemyType.isBlank()) {
+            return;
+        }
+        int speed = randomBetween(stage.enemySpeedMin, stage.enemySpeedMax);
+        int hp = randomBetween(stage.enemyHpMin, stage.enemyHpMax);
+        int probeX = resolveSpawnProbeX(spawnX);
+        int bottom = randomBattlefieldBottom(probeX);
+        ElementObj enemy = enemyObj.createElement(
+                spawnX + "," + (bottom - 72) + "," + enemyType + "," + speed + "," + hp);
+        enemy.setY(bottom - enemy.getH());
+        em.addElement(enemy, GameElement.ENEMY);
+    }
+
+    private int resolveEnemySpawnX() {
+        boolean spawnFromRight = random.nextInt(100) < 65
+                ? !lastEnemySpawnFromRight
+                : random.nextBoolean();
+        lastEnemySpawnFromRight = spawnFromRight;
+        int margin = EDGE_SPAWN_MARGIN + randomBetween(0, 28);
+        return spawnFromRight ? GameJFrame.GameX + margin : -margin;
+    }
+
+    private int resolveSpawnProbeX(int spawnX) {
+        return Math.max(24, Math.min(GameJFrame.GameX - 24, spawnX + 26));
+    }
+
+    private String[] collectEnemyTypes(String[] source, boolean eliteOnly) {
+        if (source == null || source.length == 0) {
+            return new String[0];
+        }
+        List<String> filtered = new ArrayList<>();
+        for (String enemyType : source) {
+            if (enemyType == null || enemyType.isBlank()) {
+                continue;
+            }
+            if (isEliteEnemyType(enemyType) == eliteOnly) {
+                filtered.add(enemyType);
+            }
+        }
+        return filtered.toArray(new String[0]);
+    }
+
+    private boolean isEliteEnemyType(String enemyType) {
+        if (enemyType == null) {
+            return false;
+        }
+        for (String eliteType : ELITE_ENEMY_TYPES) {
+            if (eliteType.equalsIgnoreCase(enemyType.trim())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private void handlePlayerProjectilesHitEnemies(List<ElementObj> playFiles, List<ElementObj> enemys) {
@@ -380,7 +500,7 @@ public class GameThread extends Thread {
                     PaoPao play = (PaoPao) playObj;
                     long oldHurtTime = play.getHurtTime();
                     play.hurt(gameTime, Math.max(1, projectile.getDamage()));
-                    if (play.getHurtTime() != oldHurtTime) {
+                    if (play.getHurtTime() != oldHurtTime && play.getHp() > 0) {
                         AudioPlayer.playOnce("music/die.wav");
                     }
                 } else {
@@ -405,6 +525,7 @@ public class GameThread extends Thread {
                     continue;
                 }
                 if (hostageObj instanceof Hostage) {
+                    hostageRescued = true;
                     ((Hostage) hostageObj).rescue();
                 } else {
                     hostageObj.setLive(false);
@@ -453,6 +574,47 @@ public class GameThread extends Thread {
         }
     }
 
+    private boolean hasLiveElements(GameElement element) {
+        List<ElementObj> list = em.getElementsByKey(element);
+        synchronized (list) {
+            for (ElementObj obj : list) {
+                if (obj != null && obj.isLive()) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private void showPendingObjectives(boolean enemyAlive) {
+        String message = buildPendingObjectiveMessage(enemyAlive);
+        if (message.isEmpty()) {
+            pendingObjectiveBanner = "";
+            return;
+        }
+        if (!message.equals(pendingObjectiveBanner)) {
+            pendingObjectiveBanner = message;
+            GameRuntime.showBanner(message, 1700);
+        }
+    }
+
+    private String buildPendingObjectiveMessage(boolean enemyAlive) {
+        StringBuilder message = new StringBuilder("Objectives left: ");
+        boolean missingAny = false;
+        if (!hostageRescued) {
+            message.append("rescue hostage");
+            missingAny = true;
+        }
+        if (enemyAlive) {
+            if (missingAny) {
+                message.append(" / ");
+            }
+            message.append("clear enemies");
+            missingAny = true;
+        }
+        return missingAny ? message.toString() : "";
+    }
+
     private void clearElements(GameElement element) {
         List<ElementObj> list = em.getElementsByKey(element);
         synchronized (list) {
@@ -490,6 +652,7 @@ public class GameThread extends Thread {
         private final int bossHp;
         private final String bossVariant;
         private final String hostageRewardType;
+        private final String[] enemyTypes;
 
         private StageConfig(String title, String mapPath, int stageLength,
                             int hostageSpawnDistance, int bossSpawnDistance,
@@ -497,7 +660,8 @@ public class GameThread extends Thread {
                             int enemySpeedMin, int enemySpeedMax,
                             int enemyHpMin, int enemyHpMax,
                             int scoutSpeed, int scoutHp,
-                    int bossHp, String bossVariant, String hostageRewardType) {
+                            int bossHp, String bossVariant, String hostageRewardType,
+                            String[] enemyTypes) {
             this.title = title;
             this.mapPath = mapPath;
             this.minStageLength = Math.max(0, stageLength);
@@ -516,6 +680,9 @@ public class GameThread extends Thread {
             this.bossHp = bossHp;
             this.bossVariant = bossVariant == null ? "boss1" : bossVariant;
             this.hostageRewardType = hostageRewardType;
+            this.enemyTypes = enemyTypes == null || enemyTypes.length == 0
+                    ? new String[]{"enemy1"}
+                    : Arrays.copyOf(enemyTypes, enemyTypes.length);
         }
 
         private int resolveHostageSpawnDistance(int activeStageLength) {
@@ -524,6 +691,28 @@ public class GameThread extends Thread {
 
         private int resolveBossSpawnDistance(int activeStageLength) {
             return scaleDistance(activeStageLength, bossSpawnRatio);
+        }
+
+        private int resolveEnemyInterval(int stageIndex) {
+            return Math.max(40, enemyInterval);
+        }
+
+        private int resolveMaxEnemies(int stageIndex) {
+            return Math.max(2, maxEnemies);
+        }
+
+        private int resolveBossHp(int stageIndex) {
+            return bossHp + Math.max(0, stageIndex) * 10;
+        }
+
+        private String randomEnemyType(Random random) {
+            if (enemyTypes.length == 0) {
+                return "enemy1";
+            }
+            if (random == null) {
+                return enemyTypes[0];
+            }
+            return enemyTypes[random.nextInt(enemyTypes.length)];
         }
 
         private static int scaleDistance(int activeStageLength, double ratio) {

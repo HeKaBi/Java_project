@@ -15,8 +15,8 @@ public class AudioPlayer {
     public static synchronized void playBgmLoop(String filePath) {
         stopBgm();
         try {
-            File file = new File(filePath);
-            if (!file.exists()) {
+            File file = GameLoad.resolveResourceFile(filePath);
+            if (file == null || !file.exists()) {
                 return;
             }
             AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(file);
@@ -39,8 +39,8 @@ public class AudioPlayer {
 
     public static void playOnce(String filePath) {
         try {
-            File file = new File(filePath);
-            if (!file.exists()) {
+            File file = GameLoad.resolveResourceFile(filePath);
+            if (file == null || !file.exists()) {
                 return;
             }
             AudioInputStream audioInputStream = AudioSystem.getAudioInputStream(file);

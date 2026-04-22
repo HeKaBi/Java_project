@@ -62,10 +62,15 @@ public class SupplyItem extends ElementObj {
             player.unlockWeapon(2);
             player.setWeapon(2);
             player.addGrenades(2);
-            GameRuntime.showBanner("获得重机枪补给", 1600);
+            GameRuntime.showBanner("HEAVY ARMS ACQUIRED", 1600);
+        } else if ("weapon3".equalsIgnoreCase(itemType) || "weapon4".equalsIgnoreCase(itemType)) {
+            player.unlockWeapon(3);
+            player.setWeapon(3);
+            player.addGrenades(1);
+            GameRuntime.showBanner("ROCKET LAUNCHER ACQUIRED", 1600);
         } else {
             player.addGrenades(1);
-            GameRuntime.showBanner("获得手雷补给", 1200);
+            GameRuntime.showBanner("GRENADE RESTOCK", 1200);
         }
         this.setLive(false);
     }

@@ -142,7 +142,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
                 centerX + 4, titleY + 36,
                 START_ACTION_FONT, accentColor, new Color(19, 14, 22, 90), 1);
         drawCenteredShadowedText(g2,
-                loadingStart ? "Loading terrain and mission units" : "A/D move   W double jump   E aim up   S/Down/Ctrl crouch",
+                loadingStart ? "Loading terrain and mission units" : "A/D move   W double jump   S x2 drop   Q cycle arms",
                 centerX + 4, titleY + 62, START_INFO_FONT,
                 new Color(230, 238, 244, loadingStart ? 230 : 210), new Color(8, 10, 18, 110), 1);
         drawAccentLine(g2, centerX, titleY + 76, 132 + pulse, accentColor);
@@ -197,6 +197,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
     private void drawActors(Graphics g, Map<GameElement, List<ElementObj>> all) {
         List<ElementObj> actors = new ArrayList<>();
+        addAll(actors, snapshot(all.get(GameElement.CORPSE)));
         addAll(actors, snapshot(all.get(GameElement.HOSTAGE)));
         addAll(actors, snapshot(all.get(GameElement.PLAY)));
         addAll(actors, snapshot(all.get(GameElement.ENEMY)));
@@ -211,6 +212,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
         for (GameElement ge : GameElement.values()) {
             if (ge == GameElement.MAPS
                     || ge == GameElement.PLATFORM
+                    || ge == GameElement.CORPSE
                     || ge == GameElement.PLAY
                     || ge == GameElement.ENEMY
                     || ge == GameElement.BOSS
@@ -261,8 +263,9 @@ public class GameMainJPanel extends JPanel implements Runnable {
         drawVerticalFadedLine(g2, x + 256, y + 2, 74, HUD_SEPARATOR);
         drawOutlinedText(g2, "ARMS", x + 278, y + 16, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
         drawOutlinedText(g2, play.getWeaponHudLabel(), x + 278, y + 48, HUD_VALUE_FONT, HUD_GOLD, Color.BLACK);
-        drawWeaponIndicator(g2, x + 280, y + 70, "R", !play.isHeavyWeaponEquipped(), true);
+        drawWeaponIndicator(g2, x + 280, y + 70, "R", play.isRifleEquipped(), true);
         drawWeaponIndicator(g2, x + 312, y + 70, "H", play.isHeavyWeaponEquipped(), play.hasWeapon2());
+        drawWeaponIndicator(g2, x + 344, y + 70, "3", play.isWeapon3Equipped(), play.hasWeapon3());
 
         drawVerticalFadedLine(g2, x + 388, y + 2, 74, new Color(255, 190, 96, 116));
         drawOutlinedText(g2, "BOMB", x + 408, y + 16, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
