@@ -349,15 +349,30 @@ public class MapObj extends ElementObj {
     }
 
     private static int[] extractBottomGuideRows(BufferedImage guideImage) {
-        List<int[]> runsByX = extractGuideRuns(guideImage);
         int[] rows = new int[guideImage.getWidth()];
         Arrays.fill(rows, -1);
-        for (int x = 0; x < runsByX.size(); x++) {
-            int[] runs = runsByX.get(x);
-            if (runs.length == 0) {
-                continue;
+        int height = guideImage.getHeight();
+        for (int x = 0; x < guideImage.getWidth(); x++) {
+            int runStart = -1;
+            int lastRunStart = -1;
+            int lastRunEnd = -1;
+            for (int y = 0; y <= height; y++) {
+                boolean guidePixel = y < height && isGuideBoundaryPixelStatic(guideImage.getRGB(x, y));
+                if (guidePixel) {
+                    if (runStart < 0) {
+                        runStart = y;
+                    }
+                    continue;
+                }
+                if (runStart >= 0) {
+                    lastRunStart = runStart;
+                    lastRunEnd = y - 1;
+                    runStart = -1;
+                }
             }
-            rows[x] = runs[runs.length - 1];
+            if (lastRunEnd >= 0) {
+                rows[x] = Math.max(lastRunStart, lastRunEnd - 2);
+            }
         }
         fillGuideGaps(rows);
         return rows;

@@ -107,6 +107,7 @@ public class PaoPao extends ElementObj {
     private boolean grenadeQueued;
     private boolean standingOnPlatform;
     private boolean jumpedFromPlatform;
+    private boolean allowRaisedPlatformLanding;
     private long fireTime = -100;
     private long knifeTime = -100;
     private long grenadeTime = -100;
@@ -190,6 +191,7 @@ public class PaoPao extends ElementObj {
                     remainingJumps = MAX_JUMPS - 1;
                 }
                 vy = Math.max(0.0, vy);
+                allowRaisedPlatformLanding = false;
             } else {
                 groundBottom = nextGroundBottom;
                 y = groundBottom - this.getH();
@@ -209,6 +211,7 @@ public class PaoPao extends ElementObj {
                 remainingJumps = MAX_JUMPS;
                 groundBottom = landingBottom;
                 jumpedFromPlatform = false;
+                allowRaisedPlatformLanding = false;
             }
         }
         if (y < 0) {
@@ -392,6 +395,7 @@ public class PaoPao extends ElementObj {
         this.knifeAnimUntil = -1;
         this.knifeHitTime = -1;
         this.knifeHitPending = false;
+        this.allowRaisedPlatformLanding = false;
         ImageIcon representative = currentUpperFrame != null ? currentUpperFrame : currentLowerFrame;
         if (representative != null) {
             this.setIcon(representative);
@@ -409,6 +413,7 @@ public class PaoPao extends ElementObj {
         this.setY((int) Math.round(groundBottom - this.getH()));
         this.standingOnPlatform = isStandingOnPlatform(resolveSupportX(this.getX()), (int) Math.round(this.groundBottom));
         this.jumpedFromPlatform = false;
+        this.allowRaisedPlatformLanding = false;
     }
 
     public void hurt(long gameTime, int damage) {
@@ -927,6 +932,7 @@ public class PaoPao extends ElementObj {
             return;
         }
         jumpedFromPlatform = standingOnPlatform;
+        allowRaisedPlatformLanding = true;
         standingOnPlatform = false;
         onGround = false;
         remainingJumps--;
@@ -975,6 +981,9 @@ public class PaoPao extends ElementObj {
         if (nextBottom >= terrainBottom) {
             bestBottom = terrainBottom;
         }
+        if (!allowPlatformLanding()) {
+            return bestBottom == Integer.MAX_VALUE ? terrainBottom : bestBottom;
+        }
         List<ElementObj> platforms = em.getElementsByKey(GameElement.PLATFORM);
         for (ElementObj elementObj : platforms) {
             if (!(elementObj instanceof PlatformObj)) {
@@ -996,6 +1005,10 @@ public class PaoPao extends ElementObj {
             }
         }
         return bestBottom == Integer.MAX_VALUE ? terrainBottom : bestBottom;
+    }
+
+    private boolean allowPlatformLanding() {
+        return allowRaisedPlatformLanding || jumpedFromPlatform;
     }
 
     private boolean isWithinPlatformSpan(PlatformObj platform, int footX) {
