@@ -24,8 +24,15 @@ public class MapObj extends ElementObj {
     private static final int SECONDARY_GUIDE_RIGHT_EXTENSION_LIMIT = 220;
     private static final int PLATFORM_SEGMENT_SOURCE_WIDTH = 1;
     private static final int PLATFORM_SCREEN_HEIGHT = 12;
+    private static final int MISSION3_UPPER_MIN_SEPARATION = 10;
+    private static final int MISSION3_UPPER_MAX_STEP = 4;
+    private static final int MISSION3_UPPER_GAP_MAX = 6;
+    private static final int MISSION3_UPPER_MIN_LENGTH = 120;
     private static final String[] MISSION1_GUIDE_PATHS = {
             "image/images/背景/mission1红线图.png"
+    };
+    private static final String[] MISSION3_GUIDE_PATHS = {
+            "image/images/背景/mission3_红线图.png"
     };
     private static final int MISSION1_PROFILE_BASE_WIDTH = 2171;
     private static final int MISSION1_PROFILE_BASE_HEIGHT = 197;
@@ -197,6 +204,9 @@ public class MapObj extends ElementObj {
         if (normalizedPath.endsWith("/mission1.png") || normalizedPath.endsWith("mission1.png")) {
             return resolveMission1GuideGroundRows(width, height);
         }
+        if (normalizedPath.endsWith("/mission3.png") || normalizedPath.endsWith("mission3.png")) {
+            return resolveGuideGroundRows(width, height, MISSION3_GUIDE_PATHS, GuidePathMode.BOTTOM);
+        }
         if (normalizedPath.endsWith("/map2.png") || normalizedPath.endsWith("map2.png")) {
             int[] guideRows = resolveGuideGroundRows(width, height, MAP2_GUIDE_PATHS);
             if (guideRows != null) {
@@ -211,23 +221,40 @@ public class MapObj extends ElementObj {
     public static List<int[]> buildSupplementalPlatforms(String mapPath, int mapScreenX, int mapScreenY,
                                                          int mapScreenWidth, int mapScreenHeight) {
         String normalizedPath = mapPath == null ? "" : mapPath.replace('\\', '/').toLowerCase();
-        if (!normalizedPath.endsWith("/mission1.png") && !normalizedPath.endsWith("mission1.png")) {
-            return List.of();
+        if (normalizedPath.endsWith("/mission1.png") || normalizedPath.endsWith("mission1.png")) {
+            BufferedImage guideImage = loadGuideImage(MISSION1_GUIDE_PATHS);
+            if (guideImage == null) {
+                return List.of();
+            }
+            int[] primaryRows = extractBottomGuideRows(guideImage);
+            int[] secondaryRows = extractMission1UpperRows(guideImage, primaryRows);
+            if (secondaryRows == null) {
+                return List.of();
+            }
+            return buildPlatformSegments(secondaryRows, guideImage.getWidth(), guideImage.getHeight(),
+                    mapScreenX, mapScreenY, mapScreenWidth, mapScreenHeight);
         }
-        BufferedImage guideImage = loadGuideImage(MISSION1_GUIDE_PATHS);
-        if (guideImage == null) {
-            return List.of();
+        if (normalizedPath.endsWith("/mission3.png") || normalizedPath.endsWith("mission3.png")) {
+            BufferedImage guideImage = loadGuideImage(MISSION3_GUIDE_PATHS);
+            if (guideImage == null) {
+                return List.of();
+            }
+            int[] primaryRows = extractBottomGuideRows(guideImage);
+            int[] secondaryRows = extractMission3UpperRows(guideImage, primaryRows);
+            if (secondaryRows == null) {
+                return List.of();
+            }
+            return buildPlatformSegments(secondaryRows, guideImage.getWidth(), guideImage.getHeight(),
+                    mapScreenX, mapScreenY, mapScreenWidth, mapScreenHeight);
         }
-        int[] primaryRows = extractBottomGuideRows(guideImage);
-        int[] secondaryRows = extractMission1UpperRows(guideImage, primaryRows);
-        if (secondaryRows == null) {
-            return List.of();
-        }
-        return buildPlatformSegments(secondaryRows, guideImage.getWidth(), guideImage.getHeight(),
-                mapScreenX, mapScreenY, mapScreenWidth, mapScreenHeight);
+        return List.of();
     }
 
     private int[] resolveGuideGroundRows(int width, int height, String[] guidePaths) {
+        return resolveGuideGroundRows(width, height, guidePaths, GuidePathMode.TRACKED);
+    }
+
+    private int[] resolveGuideGroundRows(int width, int height, String[] guidePaths, GuidePathMode mode) {
         if (guidePaths == null || guidePaths.length == 0) {
             return null;
         }
@@ -237,7 +264,9 @@ public class MapObj extends ElementObj {
             if (guideImage == null) {
                 continue;
             }
-            int[] guideRows = extractGuideBoundaryRows(guideImage);
+            int[] guideRows = mode == GuidePathMode.BOTTOM
+                    ? extractBottomGuideRows(guideImage)
+                    : extractGuideBoundaryRows(guideImage);
             if (guideRows == null || guideRows.length == 0) {
                 continue;
             }
@@ -256,6 +285,53 @@ public class MapObj extends ElementObj {
             return null;
         }
         return scaleGuideRows(guideRows, width, height, guideImage.getHeight());
+    }
+
+    private static int[] extractMission3UpperRows(BufferedImage guideImage, int[] primaryRows) {
+        if (guideImage == null || primaryRows == null || primaryRows.length == 0) {
+            return null;
+        }
+        List<int[]> runsByX = extractGuideRuns(guideImage);
+        int[] rows = new int[guideImage.getWidth()];
+        Arrays.fill(rows, -1);
+        int previousRow = -1;
+        for (int x = 0; x < runsByX.size(); x++) {
+            int[] runs = runsByX.get(x);
+            if (runs.length < 2) {
+                continue;
+            }
+            int primaryRow = primaryRows[Math.min(primaryRows.length - 1, x)];
+            int bestRow = -1;
+            int bestScore = Integer.MAX_VALUE;
+            for (int row : runs) {
+                if (primaryRow - row < MISSION3_UPPER_MIN_SEPARATION) {
+                    continue;
+                }
+                int target = previousRow >= 0 ? previousRow : primaryRow - 32;
+                int score = Math.abs(row - target);
+                if (score < bestScore || (score == bestScore && row > bestRow)) {
+                    bestScore = score;
+                    bestRow = row;
+                }
+            }
+            if (bestRow < 0) {
+                continue;
+            }
+            if (previousRow >= 0) {
+                int delta = bestRow - previousRow;
+                if (delta > MISSION3_UPPER_MAX_STEP) {
+                    bestRow = previousRow + MISSION3_UPPER_MAX_STEP;
+                } else if (delta < -MISSION3_UPPER_MAX_STEP) {
+                    bestRow = previousRow - MISSION3_UPPER_MAX_STEP;
+                }
+            }
+            rows[x] = bestRow;
+            previousRow = bestRow;
+        }
+        fillSparseGuideRows(rows, MISSION3_UPPER_GAP_MAX);
+        smoothGuideRun(rows, MISSION3_UPPER_MAX_STEP);
+        keepLongestGuideRun(rows, MISSION3_UPPER_MIN_LENGTH);
+        return hasGuideRows(rows) ? rows : null;
     }
 
     private static BufferedImage loadGuideImage(String[] guidePaths) {
@@ -486,6 +562,24 @@ public class MapObj extends ElementObj {
                 }
             }
             previousKnownIndex = x;
+        }
+    }
+
+    private static void smoothGuideRun(int[] rows, int maxStep) {
+        int previousKnown = -1;
+        for (int x = 0; x < rows.length; x++) {
+            if (rows[x] < 0) {
+                continue;
+            }
+            if (previousKnown >= 0) {
+                int delta = rows[x] - rows[previousKnown];
+                if (delta > maxStep) {
+                    rows[x] = rows[previousKnown] + maxStep;
+                } else if (delta < -maxStep) {
+                    rows[x] = rows[previousKnown] - maxStep;
+                }
+            }
+            previousKnown = x;
         }
     }
 
@@ -935,5 +1029,10 @@ public class MapObj extends ElementObj {
             count++;
         }
         return count == 0 ? 0.0 : sum / count;
+    }
+
+    private enum GuidePathMode {
+        TRACKED,
+        BOTTOM
     }
 }

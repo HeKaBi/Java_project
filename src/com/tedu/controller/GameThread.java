@@ -23,7 +23,8 @@ import java.util.Random;
 
 public class GameThread extends Thread {
     private static final String STAGE1_MAP_PATH = "image/images/\u80cc\u666f/mission1.png";
-    private static final String DEFAULT_STAGE_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
+    private static final String STAGE2_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
+    private static final String STAGE3_MAP_PATH = "image/images/\u80cc\u666f/mission3.png";
     private static final String[] ENEMY_TYPES = {"enemy1", "enemy2", "enemy3", "enemy4"};
     private static final StageConfig[] STAGES = {
             new StageConfig("STAGE 1", STAGE1_MAP_PATH,
@@ -31,11 +32,16 @@ public class GameThread extends Thread {
                     75, 6, 35,
                     1, 2, 2, 3,
                     3, 1, 24, "weapon2"),
-            new StageConfig("STAGE 2", DEFAULT_STAGE_MAP_PATH,
+            new StageConfig("STAGE 2", STAGE2_MAP_PATH,
                     3600, 1200, 3050,
                     55, 8, 55,
                     2, 3, 3, 4,
-                    4, 2, 36, "grenade")
+                    4, 2, 36, "grenade"),
+            new StageConfig("STAGE 3", STAGE3_MAP_PATH,
+                    3200, 1120, 2780,
+                    48, 9, 60,
+                    3, 4, 4, 5,
+                    5, 3, 48, "weapon2")
     };
 
     private final ElementManager em;
