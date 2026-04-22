@@ -20,19 +20,20 @@ import java.util.Map;
 import java.util.Random;
 
 public class GameThread extends Thread {
-    private static final String DEFAULT_STAGE_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
+    private static final String STAGE_ONE_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
+    private static final String STAGE_TWO_MAP_PATH = "image/images/\u80cc\u666f/map3.png";
     private static final String[] ENEMY_TYPES = {"enemy1", "enemy2", "enemy3", "enemy4"};
     private static final StageConfig[] STAGES = {
-            new StageConfig("STAGE 1", DEFAULT_STAGE_MAP_PATH,
+            new StageConfig("STAGE 1", STAGE_ONE_MAP_PATH,
                     2600, 900, 2050,
                     75, 6, 35,
                     1, 2, 2, 3,
-                    3, 1, 24, "weapon2"),
-            new StageConfig("STAGE 2", DEFAULT_STAGE_MAP_PATH,
-                    3600, 1200, 3050,
+                3, 1, 24, "boss1", "weapon2"),
+            new StageConfig("STAGE 2", STAGE_TWO_MAP_PATH,
+                    1100, 420, 930,
                     55, 8, 55,
                     2, 3, 3, 4,
-                    4, 2, 36, "grenade")
+                4, 2, 36, "boss2", "grenade")
     };
 
     private final ElementManager em;
@@ -240,7 +241,7 @@ public class GameThread extends Thread {
         if (!bossSpawned && GameRuntime.stageDistance >= bossSpawnDistance) {
             bossSpawned = true;
             GameRuntime.stageDistance = GameRuntime.stageLength;
-            ElementObj boss = new Boss().createElement((GameJFrame.GameX + 220) + ",0," + stage.bossHp);
+            ElementObj boss = new Boss().createElement((GameJFrame.GameX + 220) + ",0," + stage.bossHp + "," + stage.bossVariant);
             int footX = boss.getX() + boss.getW() / 2;
             boss.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - boss.getH());
             em.addElement(boss, GameElement.BOSS);
@@ -325,7 +326,11 @@ public class GameThread extends Thread {
                 }
                 int damage = Math.max(1, projectile.getDamage());
                 if (boss instanceof Boss) {
-                    ((Boss) boss).hurt(damage);
+                    Boss bossObj = (Boss) boss;
+                    if (bossObj.isDying()) {
+                        continue;
+                    }
+                    bossObj.hurt(damage);
                 } else {
                     boss.setLive(false);
                 }
@@ -466,6 +471,7 @@ public class GameThread extends Thread {
         private final int scoutSpeed;
         private final int scoutHp;
         private final int bossHp;
+        private final String bossVariant;
         private final String hostageRewardType;
 
         private StageConfig(String title, String mapPath, int stageLength,
@@ -474,7 +480,7 @@ public class GameThread extends Thread {
                             int enemySpeedMin, int enemySpeedMax,
                             int enemyHpMin, int enemyHpMax,
                             int scoutSpeed, int scoutHp,
-                            int bossHp, String hostageRewardType) {
+                    int bossHp, String bossVariant, String hostageRewardType) {
             this.title = title;
             this.mapPath = mapPath;
             this.minStageLength = Math.max(0, stageLength);
@@ -491,6 +497,7 @@ public class GameThread extends Thread {
             this.scoutSpeed = scoutSpeed;
             this.scoutHp = scoutHp;
             this.bossHp = bossHp;
+            this.bossVariant = bossVariant == null ? "boss1" : bossVariant;
             this.hostageRewardType = hostageRewardType;
         }
 

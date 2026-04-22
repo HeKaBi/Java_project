@@ -128,8 +128,7 @@ public class GameRuntime {
         if (terrain == null || terrain.maxBottomByX == null || terrain.maxBottomByX.length == 0) {
             return clampAllowedBottom(battlefieldMaxBottom);
         }
-        int profileIndex = terrain.resolveProfileIndex(screenX);
-        return clampAllowedBottom(terrain.maxBottomByX[profileIndex]);
+        return clampAllowedBottom(terrain.resolveBottom(screenX));
     }
 
     public static int getBattlefieldMinBottomAt(int screenX) {
@@ -185,19 +184,30 @@ public class GameRuntime {
             this.mapScreenWidth = mapScreenWidth;
         }
 
-        private int resolveProfileIndex(int screenX) {
+        private int resolveBottom(int screenX) {
             if (maxBottomByX.length == 1) {
-                return 0;
+                return maxBottomByX[0];
             }
+            double position = resolveProfilePosition(screenX);
+            int leftIndex = (int) Math.floor(position);
+            int rightIndex = Math.min(maxBottomByX.length - 1, leftIndex + 1);
+            if (leftIndex >= rightIndex) {
+                return maxBottomByX[Math.max(0, Math.min(maxBottomByX.length - 1, leftIndex))];
+            }
+            double ratio = position - leftIndex;
+            return (int) Math.round(maxBottomByX[leftIndex]
+                    + (maxBottomByX[rightIndex] - maxBottomByX[leftIndex]) * ratio);
+        }
+
+        private double resolveProfilePosition(int screenX) {
             double ratio = (screenX - mapScreenX) / (double) Math.max(1, mapScreenWidth - 1);
-            int index = (int) Math.round(ratio * (maxBottomByX.length - 1));
-            if (index < 0) {
-                return 0;
+            if (ratio <= 0.0) {
+                return 0.0;
             }
-            if (index >= maxBottomByX.length) {
+            if (ratio >= 1.0) {
                 return maxBottomByX.length - 1;
             }
-            return index;
+            return ratio * (maxBottomByX.length - 1);
         }
     }
 }

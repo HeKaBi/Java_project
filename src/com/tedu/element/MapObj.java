@@ -13,11 +13,16 @@ import javax.swing.ImageIcon;
 
 public class MapObj extends ElementObj {
     private static final int GROUND_SCREEN_OFFSET = 18;
+    private static final String MAP2_PATH_SUFFIX = "/map2.png";
+    private static final String MAP3_PATH_SUFFIX = "/map3.png";
     private static final int MAP2_PROFILE_BASE_WIDTH = 3822;
     private static final int MAP2_PROFILE_BASE_HEIGHT = 239;
     private static final String[] MAP2_GUIDE_PATHS = {
             "image/images/背景/指导1.png",
             "image/images/背景/指导.png"
+    };
+    private static final String[] MAP3_GUIDE_PATHS = {
+            "image/images/\u80cc\u666f/\u6307\u5bfc2.png"
     };
     private static final Map<String, Integer> GROUND_ROW_CACHE = new HashMap<>();
     private static final Map<String, int[]> GROUND_PROFILE_CACHE = new HashMap<>();
@@ -91,10 +96,7 @@ public class MapObj extends ElementObj {
         String mapPath = split[2];
         ImageIcon icon = GameLoad.getImage(mapPath);
         this.setIcon(icon);
-        int mapWidth = GameJFrame.GameX;
-        if (icon != null && icon.getIconWidth() > 0) {
-            mapWidth = icon.getIconWidth();
-        }
+        int mapWidth = resolveMapWidth(icon);
         this.setW(mapWidth);
         this.setH(GameJFrame.GameY);
         this.minX = this.getX() - Math.max(0, mapWidth - GameJFrame.GameX);
@@ -113,6 +115,17 @@ public class MapObj extends ElementObj {
             this.scrollRatio = Double.parseDouble(split[3]);
         }
         return this;
+    }
+
+    private int resolveMapWidth(ImageIcon icon) {
+        if (icon == null || icon.getIconWidth() <= 0) {
+            return GameJFrame.GameX;
+        }
+        if (icon.getIconHeight() <= 0) {
+            return Math.max(GameJFrame.GameX, icon.getIconWidth());
+        }
+        double scale = GameJFrame.GameY / (double) icon.getIconHeight();
+        return Math.max(GameJFrame.GameX, (int) Math.round(icon.getIconWidth() * scale));
     }
 
     private int[] resolveGroundProfile(ImageIcon icon, String mapPath) {
@@ -145,19 +158,29 @@ public class MapObj extends ElementObj {
 
     private int[] resolveManualGroundRows(String mapPath, int width, int height) {
         String normalizedPath = mapPath == null ? "" : mapPath.replace('\\', '/').toLowerCase();
-        if (normalizedPath.endsWith("/map2.png") || normalizedPath.endsWith("map2.png")) {
-            int[] guideRows = resolveGuideGroundRows(width, height);
+        if (matchesMapPath(normalizedPath, MAP2_PATH_SUFFIX)) {
+            int[] guideRows = resolveGuideGroundRows(MAP2_GUIDE_PATHS, width, height);
             if (guideRows != null) {
                 return guideRows;
             }
             return buildRowsFromAnchors(width, height, MAP2_PROFILE_BASE_WIDTH, MAP2_PROFILE_BASE_HEIGHT,
                     MAP2_MAIN_GROUND_ANCHORS);
         }
+        if (matchesMapPath(normalizedPath, MAP3_PATH_SUFFIX)) {
+            return resolveGuideGroundRows(MAP3_GUIDE_PATHS, width, height);
+        }
         return null;
     }
 
-    private int[] resolveGuideGroundRows(int width, int height) {
-        for (String guidePath : MAP2_GUIDE_PATHS) {
+    private boolean matchesMapPath(String normalizedPath, String suffix) {
+        return normalizedPath.endsWith(suffix) || normalizedPath.endsWith(suffix.substring(1));
+    }
+
+    private int[] resolveGuideGroundRows(String[] guidePaths, int width, int height) {
+        if (guidePaths == null || guidePaths.length == 0) {
+            return null;
+        }
+        for (String guidePath : guidePaths) {
             ImageIcon guideIcon = GameLoad.getImage(guidePath);
             BufferedImage guideImage = toBufferedImage(guideIcon);
             if (guideImage == null) {
@@ -167,7 +190,10 @@ public class MapObj extends ElementObj {
             if (guideRows == null || guideRows.length == 0) {
                 continue;
             }
-            return scaleGuideRows(guideRows, width, height, guideImage.getHeight());
+            int[] scaledRows = scaleGuideRows(guideRows, width, height, guideImage.getHeight());
+            if (scaledRows != null) {
+                return smoothGroundRows(scaledRows);
+            }
         }
         return null;
     }

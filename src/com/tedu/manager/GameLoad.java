@@ -283,15 +283,20 @@ public class GameLoad {
     private static int extractTrailingNumber(String fileName) {
         int dotIndex = fileName.lastIndexOf('.');
         int end = dotIndex >= 0 ? dotIndex : fileName.length();
-        int start = end;
-        while (start > 0 && Character.isDigit(fileName.charAt(start - 1))) {
-            start--;
+        int index = end - 1;
+        while (index >= 0 && !Character.isDigit(fileName.charAt(index))) {
+            index--;
         }
-        if (start == end) {
+        if (index < 0) {
             return Integer.MAX_VALUE;
         }
+        int numberEnd = index + 1;
+        while (index >= 0 && Character.isDigit(fileName.charAt(index))) {
+            index--;
+        }
+        int numberStart = index + 1;
         try {
-            return Integer.parseInt(fileName.substring(start, end));
+            return Integer.parseInt(fileName.substring(numberStart, numberEnd));
         } catch (NumberFormatException e) {
             return Integer.MAX_VALUE;
         }

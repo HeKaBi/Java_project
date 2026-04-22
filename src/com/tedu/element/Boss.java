@@ -7,17 +7,37 @@ import com.tedu.manager.GameLoad;
 import com.tedu.manager.GameRuntime;
 import com.tedu.show.GameJFrame;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.image.BufferedImage;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
 import java.util.List;
+import java.util.Locale;
+import java.util.Random;
 import javax.swing.ImageIcon;
 
 public class Boss extends ElementObj {
     private static final int HITBOX_W = 128;
     private static final int HITBOX_H = 118;
     private static final String BOSS_BULLET = "image/images/子弹/boss_bomb.png";
-    private static final List<ImageIcon> MOVE_FRAMES = loadBossFrames();
+    private static final String VARIANT_BOSS1 = "boss1";
+    private static final String VARIANT_BOSS2 = "boss2";
+
+    private static final int FRAME_GAP = 5;
+    private static final int BOSS1_ATTACK_INTERVAL = 30;
+    private static final long BOSS2_ATTACK_WINDUP = 8L;
+    private static final long BOSS2_ATTACK_DURATION = 22L;
+    private static final long BOSS2_RELOAD_DURATION = 18L;
+    private static final long BOSS2_CROUCH_DURATION = 14L;
+    private static final long BOSS2_ATTACK_COOLDOWN = 26L;
+
+    private static final BossAnimationSet BOSS1_ANIMATIONS = BossAnimationSet.loadBoss1();
+    private static final BossAnimationSet BOSS2_ANIMATIONS = BossAnimationSet.loadBoss2();
 
     private final ElementManager em = ElementManager.getManager();
+    private final Random random = new Random();
 
     private int hp = 24;
     private int maxHp = 24;
@@ -25,8 +45,16 @@ public class Boss extends ElementObj {
     private boolean entered = false;
     private boolean patrolRight = false;
     private boolean countedKill = false;
+    private boolean dying = false;
     private long lastAttackTime = -120;
-    private ImageIcon currentFrame = MOVE_FRAMES.isEmpty() ? null : MOVE_FRAMES.get(0);
+    private long deathStartTime = -1L;
+    private String variantKey = VARIANT_BOSS1;
+    private BossAnimationSet animationSet = BOSS1_ANIMATIONS;
+    private BossAction currentAction = BossAction.MOVE;
+    private long actionStartTime = 0L;
+    private long nextAttackTime = 0L;
+    private boolean volleyFired = false;
+    private ImageIcon currentFrame = firstFrame(BOSS1_ANIMATIONS.moveFrames);
 
     @Override
     public void showElement(Graphics g) {
@@ -43,6 +71,9 @@ public class Boss extends ElementObj {
 
     @Override
     protected void move() {
+        if (dying) {
+            return;
+        }
         int x = this.getX() - GameRuntime.worldScrollX;
         int minX = GameJFrame.GameX - 430;
         int maxX = GameJFrame.GameX - 170;
@@ -69,21 +100,53 @@ public class Boss extends ElementObj {
 
     @Override
     protected void updateImage(long gameTime) {
-        if (!MOVE_FRAMES.isEmpty()) {
-            currentFrame = MOVE_FRAMES.get((int) ((gameTime / 5) % MOVE_FRAMES.size()));
+        if (dying) {
+            List<ImageIcon> dieFrames = animationSet.framesFor(BossAction.DIE);
+            if (dieFrames.isEmpty()) {
+                this.setLive(false);
+                return;
+            }
+            if (deathStartTime < 0L) {
+                deathStartTime = gameTime;
+                currentAction = BossAction.DIE;
+                actionStartTime = gameTime;
+            }
+            ImageIcon frame = resolveCurrentFrame(gameTime);
+            if (frame != null) {
+                currentFrame = frame;
+                this.setIcon(currentFrame);
+            }
+            long elapsed = Math.max(0L, gameTime - deathStartTime);
+            if (elapsed >= (long) dieFrames.size() * FRAME_GAP) {
+                this.setLive(false);
+            }
+            return;
+        }
+        updateActionState(gameTime);
+        ImageIcon frame = resolveCurrentFrame(gameTime);
+        if (frame != null) {
+            currentFrame = frame;
             this.setIcon(currentFrame);
         }
     }
 
     @Override
     protected void add(long gameTime) {
-        if (!entered || gameTime - lastAttackTime < 30) {
+        if (dying) {
+            return;
+        }
+        if (!entered) {
+            return;
+        }
+        if (isBoss2()) {
+            handleBoss2Attack(gameTime);
+            return;
+        }
+        if (gameTime - lastAttackTime < BOSS1_ATTACK_INTERVAL) {
             return;
         }
         lastAttackTime = gameTime;
-        spawnBullet(-2, 2);
-        spawnBullet(0, 2);
-        spawnBullet(2, 2);
+        fireStandardVolley();
     }
 
     @Override
@@ -97,8 +160,19 @@ public class Boss extends ElementObj {
             this.hp = Integer.parseInt(split[2]);
             this.maxHp = this.hp;
         }
-        if (!MOVE_FRAMES.isEmpty()) {
-            currentFrame = MOVE_FRAMES.get(0);
+        applyVariant(split.length > 3 ? split[3] : VARIANT_BOSS1);
+        entered = false;
+        patrolRight = false;
+        countedKill = false;
+        dying = false;
+        lastAttackTime = -120;
+        deathStartTime = -1L;
+        currentAction = BossAction.MOVE;
+        actionStartTime = 0L;
+        nextAttackTime = 0L;
+        volleyFired = false;
+        currentFrame = firstFrame(animationSet.framesFor(BossAction.MOVE));
+        if (currentFrame != null) {
             this.setIcon(currentFrame);
         }
         return this;
@@ -112,7 +186,7 @@ public class Boss extends ElementObj {
     }
 
     public boolean hurt(int damage) {
-        if (!this.isLive()) {
+        if (!this.isLive() || dying) {
             return false;
         }
         hp -= damage;
@@ -124,8 +198,12 @@ public class Boss extends ElementObj {
             countedKill = true;
             GameRuntime.killCount++;
         }
-        this.setLive(false);
+        startDying();
         return true;
+    }
+
+    public boolean isDying() {
+        return dying;
     }
 
     public int getHp() {
@@ -148,14 +226,340 @@ public class Boss extends ElementObj {
         em.addElement(bullet, GameElement.ENEMYFILE);
     }
 
-    private static List<ImageIcon> loadBossFrames() {
+    private void updateActionState(long gameTime) {
+        if (dying) {
+            currentAction = BossAction.DIE;
+            return;
+        }
+        if (!isBoss2()) {
+            currentAction = BossAction.MOVE;
+            return;
+        }
+        if (!entered) {
+            if (currentAction != BossAction.MOVE) {
+                setAction(BossAction.MOVE, gameTime);
+            }
+            return;
+        }
+
+        long elapsed = gameTime - actionStartTime;
+        switch (currentAction) {
+            case MOVE:
+                if (gameTime >= nextAttackTime) {
+                    setAction(BossAction.ATTACK, gameTime);
+                }
+                break;
+            case ATTACK:
+                if (elapsed >= BOSS2_ATTACK_DURATION) {
+                    if (animationSet.hasFrames(BossAction.RELOAD)) {
+                        setAction(BossAction.RELOAD, gameTime);
+                    } else if (animationSet.hasFrames(BossAction.CROUCH) && random.nextInt(100) < 35) {
+                        setAction(BossAction.CROUCH, gameTime);
+                    } else {
+                        setAction(BossAction.MOVE, gameTime);
+                        nextAttackTime = gameTime + BOSS2_ATTACK_COOLDOWN;
+                    }
+                }
+                break;
+            case RELOAD:
+                if (elapsed >= BOSS2_RELOAD_DURATION) {
+                    if (animationSet.hasFrames(BossAction.CROUCH) && random.nextInt(100) < 35) {
+                        setAction(BossAction.CROUCH, gameTime);
+                    } else {
+                        setAction(BossAction.MOVE, gameTime);
+                    }
+                    nextAttackTime = gameTime + BOSS2_ATTACK_COOLDOWN;
+                }
+                break;
+            case CROUCH:
+                if (elapsed >= BOSS2_CROUCH_DURATION) {
+                    setAction(BossAction.MOVE, gameTime);
+                    nextAttackTime = gameTime + BOSS2_ATTACK_COOLDOWN;
+                }
+                break;
+            default:
+                setAction(BossAction.MOVE, gameTime);
+                break;
+        }
+    }
+
+    private void handleBoss2Attack(long gameTime) {
+        if (currentAction != BossAction.ATTACK) {
+            return;
+        }
+        if (volleyFired || gameTime - actionStartTime < BOSS2_ATTACK_WINDUP) {
+            return;
+        }
+        volleyFired = true;
+        lastAttackTime = gameTime;
+        fireStandardVolley();
+    }
+
+    private void fireStandardVolley() {
+        spawnBullet(-2, 2);
+        spawnBullet(0, 2);
+        spawnBullet(2, 2);
+    }
+
+    private ImageIcon resolveCurrentFrame(long gameTime) {
+        List<ImageIcon> frames = animationSet.framesFor(currentAction);
+        if (frames.isEmpty()) {
+            frames = animationSet.framesFor(BossAction.MOVE);
+        }
+        if (frames.isEmpty()) {
+            return null;
+        }
+        if (!isBoss2()) {
+            int index = (int) ((gameTime / FRAME_GAP) % frames.size());
+            return frames.get(index);
+        }
+        long elapsed = Math.max(0L, gameTime - actionStartTime);
+        if (currentAction == BossAction.MOVE) {
+            int index = (int) ((elapsed / FRAME_GAP) % frames.size());
+            return frames.get(index);
+        }
+        int index = (int) Math.min(frames.size() - 1, elapsed / FRAME_GAP);
+        return frames.get(index);
+    }
+
+    private void setAction(BossAction action, long gameTime) {
+        if (dying || action == null || currentAction == action) {
+            return;
+        }
+        currentAction = action;
+        actionStartTime = gameTime;
+        if (action == BossAction.ATTACK) {
+            volleyFired = false;
+        }
+    }
+
+    private void startDying() {
+        List<ImageIcon> dieFrames = animationSet.framesFor(BossAction.DIE);
+        if (dieFrames.isEmpty()) {
+            this.setLive(false);
+            return;
+        }
+        dying = true;
+        deathStartTime = -1L;
+        currentAction = BossAction.DIE;
+        volleyFired = true;
+    }
+
+    private void applyVariant(String rawVariant) {
+        String normalized = normalizeVariant(rawVariant);
+        variantKey = normalized;
+        animationSet = VARIANT_BOSS2.equals(normalized) ? BOSS2_ANIMATIONS : BOSS1_ANIMATIONS;
+    }
+
+    private boolean isBoss2() {
+        return VARIANT_BOSS2.equals(variantKey);
+    }
+
+    private static String normalizeVariant(String rawVariant) {
+        if (rawVariant == null) {
+            return VARIANT_BOSS1;
+        }
+        String normalized = rawVariant.trim().toLowerCase(Locale.ROOT);
+        return VARIANT_BOSS2.equals(normalized) ? VARIANT_BOSS2 : VARIANT_BOSS1;
+    }
+
+    private static ImageIcon firstFrame(List<ImageIcon> frames) {
+        return frames == null || frames.isEmpty() ? null : frames.get(0);
+    }
+
+    private static List<ImageIcon> loadLegacyBoss1Frames() {
         List<ImageIcon> frames = new ArrayList<>();
         for (int i = 1; i <= 16; i++) {
-            ImageIcon frame = GameLoad.getImage("image/images/boss/D_boss (" + i + ").png");
+            String inBoss1Dir = "image/images/boss/boss1/D_boss (" + i + ").png";
+            String oldRootDir = "image/images/boss/D_boss (" + i + ").png";
+            ImageIcon frame = GameLoad.getImage(inBoss1Dir);
+            if (frame == null) {
+                frame = GameLoad.getImage(oldRootDir);
+            }
             if (frame != null) {
                 frames.add(frame);
             }
         }
-        return frames;
+        return Collections.unmodifiableList(frames);
+    }
+
+    private enum BossAction {
+        MOVE,
+        ATTACK,
+        RELOAD,
+        CROUCH,
+        DIE
+    }
+
+    private static final class BossAnimationSet {
+        private final List<ImageIcon> moveFrames;
+        private final List<ImageIcon> attackFrames;
+        private final List<ImageIcon> reloadFrames;
+        private final List<ImageIcon> crouchFrames;
+        private final List<ImageIcon> dieFrames;
+
+        private BossAnimationSet(List<ImageIcon> moveFrames,
+                                 List<ImageIcon> attackFrames,
+                                 List<ImageIcon> reloadFrames,
+                                 List<ImageIcon> crouchFrames,
+                                 List<ImageIcon> dieFrames) {
+            this.moveFrames = freeze(moveFrames);
+            this.attackFrames = freeze(attackFrames);
+            this.reloadFrames = freeze(reloadFrames);
+            this.crouchFrames = freeze(crouchFrames);
+            this.dieFrames = freeze(dieFrames);
+        }
+
+        private List<ImageIcon> framesFor(BossAction action) {
+            if (action == null) {
+                return moveFrames;
+            }
+            switch (action) {
+                case ATTACK:
+                    return attackFrames;
+                case RELOAD:
+                    return reloadFrames;
+                case CROUCH:
+                    return crouchFrames;
+                case DIE:
+                    return dieFrames;
+                case MOVE:
+                default:
+                    return moveFrames;
+            }
+        }
+
+        private boolean hasFrames(BossAction action) {
+            return !framesFor(action).isEmpty();
+        }
+
+        private static BossAnimationSet loadBoss1() {
+            List<ImageIcon> moveFrames = GameLoad.loadFramesFromDirectory("image/images/boss/boss1");
+            if (moveFrames.isEmpty()) {
+                moveFrames = loadLegacyBoss1Frames();
+            }
+            return new BossAnimationSet(
+                    moveFrames,
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    Collections.emptyList());
+        }
+
+        private static BossAnimationSet loadBoss2() {
+            List<ImageIcon> moveFrames = sanitizeFrames(
+                    GameLoad.loadFramesFromDirectory("image/images/boss/boss2/move"));
+            if (moveFrames.isEmpty()) {
+                moveFrames = BOSS1_ANIMATIONS.moveFrames;
+            }
+            return new BossAnimationSet(
+                    moveFrames,
+                    sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/attack")),
+                    sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/换子弹")),
+                    sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/下蹲")),
+                    sanitizeFrames(GameLoad.loadFramesFromDirectory("image/images/boss/boss2/死亡动作")));
+        }
+
+        private static List<ImageIcon> freeze(List<ImageIcon> frames) {
+            if (frames == null || frames.isEmpty()) {
+                return Collections.emptyList();
+            }
+            return Collections.unmodifiableList(new ArrayList<>(frames));
+        }
+
+        private static List<ImageIcon> sanitizeFrames(List<ImageIcon> frames) {
+            if (frames == null || frames.isEmpty()) {
+                return Collections.emptyList();
+            }
+            List<ImageIcon> sanitized = new ArrayList<>(frames.size());
+            for (ImageIcon frame : frames) {
+                sanitized.add(stripWhiteMatte(frame));
+            }
+            return sanitized;
+        }
+
+        private static ImageIcon stripWhiteMatte(ImageIcon icon) {
+            if (icon == null) {
+                return null;
+            }
+            int width = icon.getIconWidth();
+            int height = icon.getIconHeight();
+            if (width <= 0 || height <= 0) {
+                return icon;
+            }
+            BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_ARGB);
+            Graphics2D g2 = image.createGraphics();
+            g2.drawImage(icon.getImage(), 0, 0, null);
+            g2.dispose();
+            if (!shouldStripMatte(image)) {
+                return icon;
+            }
+
+            boolean[] visited = new boolean[width * height];
+            Deque<Integer> queue = new ArrayDeque<>();
+            for (int x = 0; x < width; x++) {
+                enqueueIfMatte(image, x, 0, visited, queue);
+                enqueueIfMatte(image, x, height - 1, visited, queue);
+            }
+            for (int y = 1; y < height - 1; y++) {
+                enqueueIfMatte(image, 0, y, visited, queue);
+                enqueueIfMatte(image, width - 1, y, visited, queue);
+            }
+
+            while (!queue.isEmpty()) {
+                int index = queue.removeFirst();
+                int x = index % width;
+                int y = index / width;
+                int argb = image.getRGB(x, y);
+                image.setRGB(x, y, argb & 0x00FFFFFF);
+
+                if (x > 0) {
+                    enqueueIfMatte(image, x - 1, y, visited, queue);
+                }
+                if (x + 1 < width) {
+                    enqueueIfMatte(image, x + 1, y, visited, queue);
+                }
+                if (y > 0) {
+                    enqueueIfMatte(image, x, y - 1, visited, queue);
+                }
+                if (y + 1 < height) {
+                    enqueueIfMatte(image, x, y + 1, visited, queue);
+                }
+            }
+            return new ImageIcon(image);
+        }
+
+        private static void enqueueIfMatte(BufferedImage image, int x, int y,
+                                           boolean[] visited, Deque<Integer> queue) {
+            int width = image.getWidth();
+            int index = y * width + x;
+            if (visited[index]) {
+                return;
+            }
+            visited[index] = true;
+            if (isMattePixel(image.getRGB(x, y))) {
+                queue.addLast(index);
+            }
+        }
+
+        private static boolean shouldStripMatte(BufferedImage image) {
+            int width = image.getWidth();
+            int height = image.getHeight();
+            return isMattePixel(image.getRGB(0, 0))
+                    && isMattePixel(image.getRGB(width - 1, 0))
+                    && isMattePixel(image.getRGB(0, height - 1))
+                    && isMattePixel(image.getRGB(width - 1, height - 1));
+        }
+
+        private static boolean isMattePixel(int argb) {
+            int alpha = (argb >>> 24) & 0xFF;
+            if (alpha < 250) {
+                return false;
+            }
+            int red = (argb >>> 16) & 0xFF;
+            int green = (argb >>> 8) & 0xFF;
+            int blue = argb & 0xFF;
+            return red >= 245 && green >= 245 && blue >= 245;
+        }
     }
 }
