@@ -91,6 +91,8 @@ public class Grenade extends ElementObj {
                 ((Enemy) enemyObj).hurt(damage);
             } else if (enemyObj instanceof ScoutEnemy) {
                 ((ScoutEnemy) enemyObj).hurt(damage);
+            } else if (enemyObj instanceof PlaneEnemy) {
+                continue;
             } else {
                 enemyObj.setLive(false);
             }

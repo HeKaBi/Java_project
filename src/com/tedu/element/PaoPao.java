@@ -394,16 +394,12 @@ public class PaoPao extends ElementObj {
             bulletY = muzzle.y - bulletH / 2;
             bulletVx = faceRight ? bulletSpeed : -bulletSpeed;
             bulletVy = 0;
-        } else if (aimUp && onGround) {
+        } else if (isShootingUp()) {
             bulletX = muzzle.x - bulletW / 2;
             bulletY = muzzle.y - bulletH;
-            bulletVx = 0;
-            bulletVy = -bulletSpeed;
-        } else if (!onGround && aimUp) {
-            bulletX = faceRight ? muzzle.x : muzzle.x - bulletW;
-            bulletY = muzzle.y - bulletH / 2;
-            bulletVx = faceRight ? Math.max(8, bulletSpeed - 3) : -Math.max(8, bulletSpeed - 3);
-            bulletVy = -Math.max(6, bulletSpeed - 5);
+            Point aimUpVelocity = currentWeapon.resolveAimUpVelocity(faceRight);
+            bulletVx = aimUpVelocity.x;
+            bulletVy = aimUpVelocity.y;
         } else {
             bulletX = faceRight ? muzzle.x : muzzle.x - bulletW;
             bulletY = muzzle.y - bulletH / 2;
@@ -604,7 +600,7 @@ public class PaoPao extends ElementObj {
             lowerFrame = selectLoopFrame(LOWER_JUMP.select(faceRight), time, AIR_FRAME_GAP);
             if (isShootAnimating(time)) {
                 upperFrame = selectOneShotFrame(shootFrames, shootAnimStart, time, SHOOT_FRAME_GAP);
-            } else if (aimUp) {
+            } else if (isAimUpActive()) {
                 upperFrame = selectLoopFrame(aimUpFrames, time, AIR_FRAME_GAP);
             } else {
                 upperFrame = idleUpper;
@@ -630,7 +626,7 @@ public class PaoPao extends ElementObj {
             }
             if (isShootAnimating(time)) {
                 upperFrame = selectOneShotFrame(shootFrames, shootAnimStart, time, SHOOT_FRAME_GAP);
-            } else if (aimUp) {
+            } else if (isAimUpActive()) {
                 upperFrame = firstFrame(aimUpFrames);
             } else {
                 upperFrame = idleUpper;
@@ -644,7 +640,7 @@ public class PaoPao extends ElementObj {
         }
         if (isShootAnimating(time)) {
             upperFrame = selectOneShotFrame(shootFrames, shootAnimStart, time, SHOOT_FRAME_GAP);
-        } else if (aimUp) {
+        } else if (isAimUpActive()) {
             upperFrame = firstFrame(aimUpFrames);
         } else {
             upperFrame = idleUpper;
@@ -652,8 +648,12 @@ public class PaoPao extends ElementObj {
         return new FrameSelection(upperFrame, lowerFrame);
     }
 
+    private boolean isAimUpActive() {
+        return aimUp || up;
+    }
+
     private boolean isShootingUp() {
-        return aimUp && !isGroundCrouching();
+        return isAimUpActive() && !isGroundCrouching();
     }
 
     private List<ImageIcon> resolveShootFrames(List<ImageIcon> attackFrames, List<ImageIcon> aimUpFrames) {
@@ -786,6 +786,9 @@ public class PaoPao extends ElementObj {
     private Point resolveBulletOrigin() {
         if (isShootingUp()) {
             ImageIcon upper = firstFrame(currentWeapon.aimUp.select(faceRight));
+            if (upper == null) {
+                upper = firstFrame(currentWeapon.attack.select(faceRight));
+            }
             ImageIcon lower = currentLowerFrame;
             if (lower == null) {
                 lower = firstFrame(!onGround
@@ -793,13 +796,8 @@ public class PaoPao extends ElementObj {
                         : LOWER_STAND.select(faceRight));
             }
             SpritePose pose = buildPose(upper, lower, false, false);
-            int centerX = pose.upper != null
-                    ? pose.upperX + pose.upper.getIconWidth() / 2
-                    : this.getCenterX();
-            int topY = pose.upper != null
-                    ? pose.upperY + 6
-                    : this.getY();
-            return new Point(centerX, topY);
+            Point localMuzzle = findAimUpMuzzlePoint(upper, faceRight);
+            return new Point(pose.upperX + localMuzzle.x, pose.upperY + localMuzzle.y);
         }
         ImageIcon attackFrame = firstFrame(currentWeapon.attack.select(faceRight));
         if (attackFrame == null) {
@@ -852,6 +850,34 @@ public class PaoPao extends ElementObj {
         return fallback;
     }
 
+    private Point findAimUpMuzzlePoint(ImageIcon frame, boolean rightFacing) {
+        if (frame == null) {
+            return new Point(0, 0);
+        }
+        String cacheKey = "aimup:" + System.identityHashCode(frame) + ":" + (rightFacing ? "R" : "L");
+        Point cached = MUZZLE_CACHE.get(cacheKey);
+        if (cached != null) {
+            return cached;
+        }
+        BufferedImage image = toBufferedImage(frame);
+        Point fallback = new Point(frame.getIconWidth() / 2, 0);
+        if (image == null) {
+            MUZZLE_CACHE.put(cacheKey, fallback);
+            return fallback;
+        }
+        for (int y = 0; y < image.getHeight(); y++) {
+            int avgX = averageOpaqueXOnRow(image, y);
+            if (avgX < 0) {
+                continue;
+            }
+            Point muzzle = new Point(avgX, y);
+            MUZZLE_CACHE.put(cacheKey, muzzle);
+            return muzzle;
+        }
+        MUZZLE_CACHE.put(cacheKey, fallback);
+        return fallback;
+    }
+
     private Point averageOpaquePoint(BufferedImage image, int startX, int endX, int pointX) {
         int sumY = 0;
         int count = 0;
@@ -867,6 +893,22 @@ public class PaoPao extends ElementObj {
             return null;
         }
         return new Point(pointX, sumY / count);
+    }
+
+    private int averageOpaqueXOnRow(BufferedImage image, int y) {
+        int sumX = 0;
+        int count = 0;
+        for (int x = 0; x < image.getWidth(); x++) {
+            if (((image.getRGB(x, y) >>> 24) & 0xff) <= 16) {
+                continue;
+            }
+            sumX += x;
+            count++;
+        }
+        if (count == 0) {
+            return -1;
+        }
+        return Math.round((float) sumX / count);
     }
 
     private BufferedImage toBufferedImage(ImageIcon frame) {
@@ -975,6 +1017,8 @@ public class PaoPao extends ElementObj {
                 ((Enemy) enemyObj).hurt(KNIFE_DAMAGE);
             } else if (enemyObj instanceof ScoutEnemy) {
                 ((ScoutEnemy) enemyObj).hurt(KNIFE_DAMAGE);
+            } else if (enemyObj instanceof PlaneEnemy) {
+                continue;
             } else {
                 enemyObj.setLive(false);
             }
@@ -1051,7 +1095,7 @@ public class PaoPao extends ElementObj {
             grenadeY = this.getY() + this.getH() - 18;
             grenadeVx = faceRight ? 6.0 : -6.0;
             grenadeVy = -8.0;
-        } else if (aimUp) {
+        } else if (isAimUpActive()) {
             grenadeVx = faceRight ? 5.0 : -5.0;
             grenadeVy = -12.5;
         }
@@ -1450,9 +1494,9 @@ public class PaoPao extends ElementObj {
     }
 
     private enum WeaponType {
-        RIFLE("步枪", "RIFLE", UPPER_AIM_UP_W1, UPPER_ATTACK_W1, PLAYER_BULLET_LEFT, PLAYER_BULLET_RIGHT, 7, 1, 12),
-        HEAVY("重机枪", "HEAVY", UPPER_AIM_UP_W2, UPPER_ATTACK_W2, PLAYER_HEAVY_BULLET_LEFT, PLAYER_HEAVY_BULLET_RIGHT, 12, 2, 16),
-        ROCKET("火箭筒", "ROCKET", UPPER_AIM_UP_W4, UPPER_ATTACK_W4, PLAYER_ROCKET_BULLET_LEFT, PLAYER_ROCKET_BULLET_RIGHT, 20, 4, 10);
+        RIFLE("步枪", "RIFLE", UPPER_AIM_UP_W1, UPPER_ATTACK_W1, PLAYER_BULLET_LEFT, PLAYER_BULLET_RIGHT, 7, 1, 12, 2),
+        HEAVY("重机枪", "HEAVY", UPPER_AIM_UP_W2, UPPER_ATTACK_W2, PLAYER_HEAVY_BULLET_LEFT, PLAYER_HEAVY_BULLET_RIGHT, 12, 2, 16, 6),
+        ROCKET("火箭筒", "ROCKET", UPPER_AIM_UP_W4, UPPER_ATTACK_W4, PLAYER_ROCKET_BULLET_LEFT, PLAYER_ROCKET_BULLET_RIGHT, 20, 4, 10, 0);
 
         private final String label;
         private final String hudLabel;
@@ -1463,9 +1507,11 @@ public class PaoPao extends ElementObj {
         private final int fireInterval;
         private final int damage;
         private final int bulletSpeed;
+        private final int aimUpHorizontalSpeed;
 
         WeaponType(String label, String hudLabel, DirectionalFrames aimUp, DirectionalFrames attack,
-                   String leftBullet, String rightBullet, int fireInterval, int damage, int bulletSpeed) {
+                   String leftBullet, String rightBullet, int fireInterval, int damage, int bulletSpeed,
+                   int aimUpHorizontalSpeed) {
             this.label = label;
             this.hudLabel = hudLabel;
             this.aimUp = aimUp;
@@ -1475,6 +1521,7 @@ public class PaoPao extends ElementObj {
             this.fireInterval = fireInterval;
             this.damage = rebalanceDamage(hudLabel, damage);
             this.bulletSpeed = rebalanceBulletSpeed(hudLabel, bulletSpeed);
+            this.aimUpHorizontalSpeed = Math.max(0, aimUpHorizontalSpeed);
         }
 
         private static int rebalanceDamage(String hudLabel, int damage) {
@@ -1492,6 +1539,13 @@ public class PaoPao extends ElementObj {
                 return HEAVY_BULLET_SPEED;
             }
             return RIFLE_BULLET_SPEED;
+        }
+
+        private Point resolveAimUpVelocity(boolean rightFacing) {
+            int horizontal = Math.min(aimUpHorizontalSpeed, Math.max(0, bulletSpeed - 1));
+            int vertical = (int) Math.round(Math.sqrt(Math.max(1, bulletSpeed * bulletSpeed - horizontal * horizontal)));
+            vertical = Math.max(4, vertical);
+            return new Point(rightFacing ? horizontal : -horizontal, -vertical);
         }
     }
 

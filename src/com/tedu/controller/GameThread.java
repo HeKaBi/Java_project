@@ -1,6 +1,8 @@
 package com.tedu.controller;
 
+import com.tedu.element.AdvancePromptEffect;
 import com.tedu.element.Boss;
+import com.tedu.element.Bullet;
 import com.tedu.element.ElementObj;
 import com.tedu.element.Enemy;
 import com.tedu.element.EnemyBullet;
@@ -8,6 +10,8 @@ import com.tedu.element.Grenade;
 import com.tedu.element.Hostage;
 import com.tedu.element.MapObj;
 import com.tedu.element.PaoPao;
+import com.tedu.element.PlaneBomb;
+import com.tedu.element.PlaneEnemy;
 import com.tedu.element.PlatformObj;
 import com.tedu.element.ScoutEnemy;
 import com.tedu.element.SupplyItem;
@@ -24,12 +28,34 @@ import java.util.Map;
 import java.util.Random;
 
 public class GameThread extends Thread {
+    private static final long STAGE_TRANSITION_CLOSE_MS = 900L;
+    private static final long STAGE_TRANSITION_OPEN_MS = 820L;
+    private static final String STAGE1_BGM_PATH = "music/mission1_background.wav";
+    private static final String STAGE2_BGM_PATH = "music/mission2_background.wav";
+    private static final String STAGE3_BGM_PATH = "music/mission3_background.wav";
+    private static final String DEFAULT_STAGE_BGM_PATH = "music/boss_lv.wav";
+    private static final int ADVANCE_PROMPT_X = GameJFrame.GameX - 136;
+    private static final int ADVANCE_PROMPT_Y = 75;
+    private static final int ADVANCE_PROMPT_W = 96;
+    private static final int ADVANCE_PROMPT_H = 96;
+    private static final int ADVANCE_PROMPT_TICKS = 180;
     private static final String STAGE1_MAP_PATH = "image/images/\u80cc\u666f/mission1.png";
     private static final String STAGE2_MAP_PATH = "image/images/\u80cc\u666f/map2.png";
     private static final String STAGE3_MAP_PATH = "image/images/\u80cc\u666f/mission3.png";
     private static final String[] STAGE12_ENEMY_TYPES = {"enemy1", "enemy2", "enemy3", "enemy4", "enemy5", "enemy6"};
     private static final String[] STAGE3_ENEMY_TYPES = {"enemy2", "enemy3", "enemy4", "enemy5", "enemy6"};
     private static final String[] ELITE_ENEMY_TYPES = {"enemy5", "enemy6"};
+    private static final double[][] STAGE_PLANE_SPAWN_RATIOS = {
+        {0.18, 0.44, 0.70},
+        {0.24, 0.52, 0.80},
+        {0.20, 0.48, 0.76}
+    };
+    private static final int[][] STAGE_PLANE_BASE_ALTITUDES = {
+        {118, 146, 132},
+        {116, 124, 118},
+        {122, 150, 136}
+    };
+    private static final int[] STAGE_MAX_ACTIVE_PLANES = {1, 1, 1};
     private static final int EDGE_SPAWN_MARGIN = 84;
     private static final int HOSTAGE_GUARD_OFFSET = 138;
     private static final int REGULAR_ELITE_CHANCE = 8;
@@ -39,17 +65,17 @@ public class GameThread extends Thread {
                 1200, 420, 950,
                 90, 4, 35,
                 1, 2, 2, 3,
-                3, 1, 24, "boss1", "weapon2", STAGE12_ENEMY_TYPES),
+                3, 1, 24, "boss1", "weapon2", STAGE12_ENEMY_TYPES, STAGE1_BGM_PATH),
         new StageConfig("STAGE 2", STAGE2_MAP_PATH,
                 3600, 1200, 3050,
                 72, 5, 55,
                 2, 3, 3, 4,
-                4, 2, 36, "boss2", "grenade", STAGE12_ENEMY_TYPES),
+                4, 2, 36, "boss2", "grenade", STAGE12_ENEMY_TYPES, STAGE2_BGM_PATH),
         new StageConfig("STAGE 3", STAGE3_MAP_PATH,
                 3200, 1120, 2780,
                 66, 6, 60,
                 3, 4, 4, 5,
-                5, 3, 48, "boss3", "weapon3", STAGE3_ENEMY_TYPES)
+                5, 3, 48, "boss3", "weapon3", STAGE3_ENEMY_TYPES, STAGE3_BGM_PATH)
     };
 
     private final ElementManager em;
@@ -62,6 +88,11 @@ public class GameThread extends Thread {
     private boolean missionResolved;
     private int currentStageIndex;
     private boolean lastEnemySpawnFromRight;
+    private final boolean[][] stagePlaneSpawned = {
+        new boolean[STAGE_PLANE_SPAWN_RATIOS[0].length],
+        new boolean[STAGE_PLANE_SPAWN_RATIOS[1].length],
+        new boolean[STAGE_PLANE_SPAWN_RATIOS[2].length]
+    };
     private String stageHostageOrderType = "order0";
     private String pendingObjectiveBanner = "";
 
@@ -108,7 +139,6 @@ public class GameThread extends Thread {
         GameLoad.loadImg();
         GameLoad.loadObj();
         loadStage(0, 0L, null);
-        AudioPlayer.playBgmLoop("music/boss_lv.wav");
         GameRuntime.markGameStartNow();
         GameRuntime.finishStartTransition();
     }
@@ -116,6 +146,7 @@ public class GameThread extends Thread {
     private void loadStage(int stageIndex, long gameTime, PaoPao existingPlayer) {
         currentStageIndex = stageIndex;
         StageConfig stage = getCurrentStage();
+        AudioPlayer.playBgmLoop(stage.bgmPath);
         clearStageElements();
         resetStageState(gameTime);
         int resolvedStageLength = loadMap(stage);
@@ -131,7 +162,9 @@ public class GameThread extends Thread {
         }
 
         if (stageIndex == 0) {
-            GameRuntime.showBanner(stage.title + "  |  A/D move  W double jump  Sx2 drop  Q cycle arms", 2600);
+            GameRuntime.showBanner(
+                    stage.title + "  |  A/D move  W double jump  Up/E aim up  S x2 drop  Ctrl crouch  Q cycle arms",
+                    2600);
         } else {
             GameRuntime.showBanner(stage.title, 1800);
         }
@@ -183,6 +216,9 @@ public class GameThread extends Thread {
         missionResolved = false;
         stageHostageOrderType = random.nextBoolean() ? "order0" : "order1";
         lastEnemySpawnFromRight = random.nextBoolean();
+        for (boolean[] stageWaves : stagePlaneSpawned) {
+            Arrays.fill(stageWaves, false);
+        }
         pendingObjectiveBanner = "";
         GameRuntime.worldScrollX = 0;
     }
@@ -246,7 +282,7 @@ public class GameThread extends Thread {
                 missionResolved = true;
                 pendingObjectiveBanner = "";
                 if (hasNextStage()) {
-                    loadStage(currentStageIndex + 1, gameTime, getPlayer());
+                    playStageTransition(currentStageIndex + 1, gameTime, getPlayer());
                 } else {
                     GameRuntime.missionClear = true;
                     GameRuntime.finishTitle = "MISSION COMPLETE";
@@ -265,6 +301,42 @@ public class GameThread extends Thread {
                 e.printStackTrace();
             }
         }
+    }
+
+    private void playStageTransition(int nextStageIndex, long gameTime, PaoPao player) {
+        GameRuntime.beginStageTransition(true, STAGE_TRANSITION_CLOSE_MS);
+        waitForStageTransition(STAGE_TRANSITION_CLOSE_MS);
+        loadStage(nextStageIndex, gameTime, player);
+        GameRuntime.beginStageTransition(false, STAGE_TRANSITION_OPEN_MS);
+        waitForStageTransition(STAGE_TRANSITION_OPEN_MS);
+        GameRuntime.clearStageTransition();
+    }
+
+    private void waitForStageTransition(long durationMs) {
+        long waitUntil = System.currentTimeMillis() + Math.max(0L, durationMs);
+        while (System.currentTimeMillis() < waitUntil) {
+            try {
+                sleep(10);
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+                break;
+            }
+        }
+    }
+
+    private void spawnAdvancePrompt() {
+        List<ElementObj> effects = em.getElementsByKey(GameElement.DIE);
+        synchronized (effects) {
+            for (ElementObj effect : effects) {
+                if (effect instanceof AdvancePromptEffect) {
+                    effect.setLive(false);
+                }
+            }
+        }
+        ElementObj prompt = new AdvancePromptEffect().createElement(
+                ADVANCE_PROMPT_X + "," + ADVANCE_PROMPT_Y + ","
+                        + ADVANCE_PROMPT_W + "," + ADVANCE_PROMPT_H + "," + ADVANCE_PROMPT_TICKS);
+        em.addElement(prompt, GameElement.DIE);
     }
 
     private int resolveWorldScroll(List<ElementObj> plays, List<ElementObj> bosses) {
@@ -303,13 +375,71 @@ public class GameThread extends Thread {
             int footX = boss.getX() + boss.getW() / 2;
             boss.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - boss.getH());
             em.addElement(boss, GameElement.BOSS);
-            GameRuntime.showBanner("Boss incoming", 1800);
+            GameRuntime.showBanner("首领来袭", 1800);
             return;
         }
         if (bossSpawned || (bosses != null && !bosses.isEmpty())) {
             return;
         }
+        spawnStagePlanes(enemys);
         spawnEnemy(gameTime, enemys, stage);
+    }
+
+    private void spawnStagePlanes(List<ElementObj> enemys) {
+        if (enemys == null || currentStageIndex < 0 || currentStageIndex >= STAGE_PLANE_SPAWN_RATIOS.length) {
+            return;
+        }
+        boolean[] spawnedFlags = stagePlaneSpawned[currentStageIndex];
+        double[] ratios = STAGE_PLANE_SPAWN_RATIOS[currentStageIndex];
+        int activePlanes = countActivePlanes(enemys);
+        for (int i = 0; i < spawnedFlags.length; i++) {
+            if (spawnedFlags[i]) {
+                continue;
+            }
+            int triggerDistance = StageConfig.scaleDistance(GameRuntime.stageLength, ratios[i]);
+            if (GameRuntime.stageDistance < triggerDistance) {
+                continue;
+            }
+            if (activePlanes >= STAGE_MAX_ACTIVE_PLANES[currentStageIndex]) {
+                return;
+            }
+            spawnStagePlane(currentStageIndex, i);
+            spawnedFlags[i] = true;
+            activePlanes++;
+            if (i == 0) {
+                GameRuntime.showBanner("Enemy aircraft inbound", 1400);
+            }
+        }
+    }
+
+    private int countActivePlanes(List<ElementObj> enemys) {
+        int count = 0;
+        for (ElementObj enemyObj : enemys) {
+            if (enemyObj instanceof PlaneEnemy && enemyObj.isLive()) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private void spawnStagePlane(int stageIndex, int waveIndex) {
+        boolean patrolStage = stageIndex == 1;
+        boolean fromRight = !patrolStage && waveIndex % 2 == 0;
+        int spawnX = patrolStage ? -320 : (fromRight ? GameJFrame.GameX + 260 : -320);
+        int[] altitudes = STAGE_PLANE_BASE_ALTITUDES[stageIndex];
+        int baseAltitude = altitudes[waveIndex % altitudes.length];
+        int spawnY = Math.max(52, baseAltitude + randomBetween(-12, 12));
+        String direction = patrolStage ? "right" : (fromRight ? "left" : "right");
+        String mode = patrolStage ? "patrol" : "strafe";
+        int speed = patrolStage ? 4 + (waveIndex % 2) : 4 + Math.min(2, stageIndex + (waveIndex % 2));
+        int hp = 5 + stageIndex * 2 + waveIndex;
+        int bombs = patrolStage ? 2 : ((waveIndex % 2 == 0) ? 1 : 2);
+        int patrolRange = patrolStage ? 118 + waveIndex * 10 : 0;
+        int hoverOffset = patrolStage ? 116 : 0;
+        ElementObj plane = new PlaneEnemy().createElement(
+                spawnX + "," + spawnY + "," + direction + "," + speed + "," + hp + ","
+                        + mode + "," + bombs + "," + patrolRange + "," + hoverOffset);
+        em.addElement(plane, GameElement.ENEMY);
     }
 
     private void spawnEnemy(long gameTime, List<ElementObj> enemys, StageConfig stage) {
@@ -436,11 +566,16 @@ public class GameThread extends Thread {
                 if (!enemy.isLive() || !enemy.pk(projectile)) {
                     continue;
                 }
+                if (enemy instanceof PlaneEnemy && !(projectile instanceof Bullet)) {
+                    continue;
+                }
                 int damage = Math.max(1, projectile.getDamage());
                 if (enemy instanceof Enemy) {
                     ((Enemy) enemy).hurt(damage);
                 } else if (enemy instanceof ScoutEnemy) {
                     ((ScoutEnemy) enemy).hurt(damage);
+                } else if (enemy instanceof PlaneEnemy) {
+                    ((PlaneEnemy) enemy).hurt(damage);
                 } else {
                     enemy.setLive(false);
                 }
@@ -508,6 +643,8 @@ public class GameThread extends Thread {
                 }
                 if (projectile instanceof EnemyBullet) {
                     ((EnemyBullet) projectile).triggerImpact();
+                } else if (projectile instanceof PlaneBomb) {
+                    ((PlaneBomb) projectile).triggerImpact();
                 } else {
                     projectile.setLive(false);
                 }
@@ -527,6 +664,7 @@ public class GameThread extends Thread {
                 if (hostageObj instanceof Hostage) {
                     hostageRescued = true;
                     ((Hostage) hostageObj).rescue();
+                    spawnAdvancePrompt();
                 } else {
                     hostageObj.setLive(false);
                 }
@@ -550,7 +688,11 @@ public class GameThread extends Thread {
                 continue;
             }
             if (itemObj instanceof SupplyItem) {
-                ((SupplyItem) itemObj).applyTo(play);
+                SupplyItem item = (SupplyItem) itemObj;
+                if (!item.canPickup()) {
+                    continue;
+                }
+                item.applyTo(play);
             } else {
                 itemObj.setLive(false);
             }
@@ -653,6 +795,7 @@ public class GameThread extends Thread {
         private final String bossVariant;
         private final String hostageRewardType;
         private final String[] enemyTypes;
+        private final String bgmPath;
 
         private StageConfig(String title, String mapPath, int stageLength,
                             int hostageSpawnDistance, int bossSpawnDistance,
@@ -661,7 +804,7 @@ public class GameThread extends Thread {
                             int enemyHpMin, int enemyHpMax,
                             int scoutSpeed, int scoutHp,
                             int bossHp, String bossVariant, String hostageRewardType,
-                            String[] enemyTypes) {
+                            String[] enemyTypes, String bgmPath) {
             this.title = title;
             this.mapPath = mapPath;
             this.minStageLength = Math.max(0, stageLength);
@@ -683,6 +826,7 @@ public class GameThread extends Thread {
             this.enemyTypes = enemyTypes == null || enemyTypes.length == 0
                     ? new String[]{"enemy1"}
                     : Arrays.copyOf(enemyTypes, enemyTypes.length);
+            this.bgmPath = (bgmPath == null || bgmPath.isBlank()) ? DEFAULT_STAGE_BGM_PATH : bgmPath;
         }
 
         private int resolveHostageSpawnDistance(int activeStageLength) {
