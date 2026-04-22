@@ -3,6 +3,7 @@ package com.tedu.controller;
 import com.tedu.element.Boss;
 import com.tedu.element.ElementObj;
 import com.tedu.element.Enemy;
+import com.tedu.element.EnemyBullet;
 import com.tedu.element.Grenade;
 import com.tedu.element.Hostage;
 import com.tedu.element.MapObj;
@@ -381,7 +382,11 @@ public class GameThread extends Thread {
                 } else {
                     playObj.setLive(false);
                 }
-                projectile.setLive(false);
+                if (projectile instanceof EnemyBullet) {
+                    ((EnemyBullet) projectile).triggerImpact();
+                } else {
+                    projectile.setLive(false);
+                }
                 break;
             }
         }

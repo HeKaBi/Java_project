@@ -13,6 +13,7 @@ import javax.swing.ImageIcon;
 public class Grenade extends ElementObj {
     private static final ImageIcon GRENADE_ICON = GameLoad.loadImage("image/images/\u5b50\u5f39/bomb2.png");
     private static final int HITBOX = 18;
+    private static final int TERRAIN_CONTACT_MARGIN = 1;
 
     private final ElementManager em = ElementManager.getManager();
     private double vx = 8.0;
@@ -37,14 +38,17 @@ public class Grenade extends ElementObj {
 
     @Override
     protected void move() {
-        this.setX((int) Math.round(this.getX() + vx - GameRuntime.worldScrollX));
-        this.setY((int) Math.round(this.getY() + vy));
+        int startX = this.getX();
+        int startY = this.getY();
+        double targetX = startX + vx - GameRuntime.worldScrollX;
+        double targetY = startY + vy;
         vy += gravity;
-        int groundY = GameRuntime.getBattlefieldMaxBottomAt(this.getCenterX()) - this.getH();
-        if (this.getY() >= groundY) {
-            this.setY(groundY);
+        if (moveIntoTerrain(startX, startY, targetX, targetY)) {
             explode();
+            return;
         }
+        this.setX((int) Math.round(targetX));
+        this.setY((int) Math.round(targetY));
         if (this.getX() + this.getW() < -120 || this.getX() > GameJFrame.GameX + 120 || this.getY() > GameJFrame.GameY + 120) {
             this.setLive(false);
         }
@@ -112,5 +116,37 @@ public class Grenade extends ElementObj {
         }
         shouldExplode = true;
         this.setLive(false);
+    }
+
+    private boolean moveIntoTerrain(int startX, int startY, double targetX, double targetY) {
+        double dx = targetX - startX;
+        double dy = targetY - startY;
+        int steps = Math.max(1, (int) Math.ceil(Math.max(Math.abs(dx), Math.abs(dy))));
+        for (int step = 1; step <= steps; step++) {
+            double ratio = step / (double) steps;
+            int candidateX = (int) Math.round(startX + dx * ratio);
+            int candidateY = (int) Math.round(startY + dy * ratio);
+            if (!collidesWithTerrain(candidateX, candidateY, dx)) {
+                continue;
+            }
+            this.setX(candidateX);
+            int groundBottom = GameRuntime.getBattlefieldMaxBottomAt(candidateX + this.getW() / 2);
+            this.setY(Math.min(candidateY, groundBottom - this.getH()));
+            return true;
+        }
+        return false;
+    }
+
+    private boolean collidesWithTerrain(int candidateX, int candidateY, double dx) {
+        int bottomY = candidateY + this.getH() - TERRAIN_CONTACT_MARGIN;
+        int centerX = candidateX + this.getW() / 2;
+        if (bottomY >= GameRuntime.getBattlefieldMaxBottomAt(centerX)) {
+            return true;
+        }
+        if (dx == 0.0) {
+            return false;
+        }
+        int frontX = candidateX + (dx > 0 ? this.getW() - 1 : 0);
+        return bottomY >= GameRuntime.getBattlefieldMaxBottomAt(frontX);
     }
 }
