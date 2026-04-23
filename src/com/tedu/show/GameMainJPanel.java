@@ -160,8 +160,8 @@ public class GameMainJPanel extends JPanel implements Runnable {
                 START_ACTION_FONT, accentColor, new Color(19, 14, 22, 90), 1);
         drawCenteredShadowedText(g2,
                 loadingStart
-                        ? "Loading terrain and mission units"
-                        : "A/D move   W double jump   Up/E aim up   S x2 drop   Ctrl crouch   Q cycle arms",
+                        ? "正在装载地形与任务单位"
+                        : "A/D移动   W二段跳   上/E上瞄   S连按下落   Ctrl下蹲   Q切换武器",
                 centerX + 4, titleY + 62, START_INFO_FONT,
                 new Color(230, 238, 244, loadingStart ? 230 : 210), new Color(8, 10, 18, 110), 1);
         drawAccentLine(g2, centerX, titleY + 76, 132 + pulse, accentColor);
@@ -273,14 +273,14 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
     private void drawPlayerHud(Graphics2D g2, PaoPao play) {
         int x = 18;
-        int y = GameJFrame.GameY - 92;
+        int y = 14;
         int w = 388;
         int h = 64;
 
         drawHudPlate(g2, x, y, w, h);
         drawInsetPanel(g2, x + 10, y + 8, 58, 48);
         drawPlayerPortrait(g2, x + 10, y + 8, 58, 48);
-        drawOutlinedText(g2, "1P", x + 20, y + 58, HUD_SMALL_FONT, HUD_GOLD, Color.BLACK);
+        drawOutlinedText(g2, "1号", x + 18, y + 58, HUD_SMALL_FONT, HUD_GOLD, Color.BLACK);
 
         double hpRatio = play.getMaxHp() <= 0 ? 0.0 : play.getHp() / (double) play.getMaxHp();
         Color hpFill = hpRatio <= 0.20 ? HUD_RED : HUD_GREEN;
@@ -289,11 +289,11 @@ public class GameMainJPanel extends JPanel implements Runnable {
         drawMeter(g2, x + 80, y + 24, 128, 12, hpRatio, hpFill, hpGlow);
 
         drawVerticalFadedLine(g2, x + 256, y + 2, 74, HUD_SEPARATOR);
-        drawOutlinedText(g2, "ARMS", x + 278, y + 16, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
+        drawOutlinedText(g2, "武器", x + 278, y + 16, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
         drawOutlinedText(g2, play.getWeaponHudLabel(), x + 278, y + 48, HUD_VALUE_FONT, HUD_GOLD, Color.BLACK);
-        drawWeaponIndicator(g2, x + 286, y + 58, "R", play.isRifleEquipped(), true);
-        drawWeaponIndicator(g2, x + 318, y + 58, "H", play.isHeavyWeaponEquipped(), play.hasWeapon2());
-        drawWeaponIndicator(g2, x + 350, y + 58, "3", play.isWeapon3Equipped(), play.hasWeapon3());
+        drawWeaponIndicator(g2, x + 286, y + 58, "步", play.isRifleEquipped(), true);
+        drawWeaponIndicator(g2, x + 318, y + 58, "机", play.isHeavyWeaponEquipped(), play.hasWeapon2());
+        drawWeaponIndicator(g2, x + 350, y + 58, "炮", play.isWeapon3Equipped(), play.hasWeapon3());
 
         drawVerticalFadedLine(g2, x + 216, y + 9, 46, HUD_SEPARATOR);
         drawOutlinedText(g2, "手雷", x + 234, y + 18, HUD_SMALL_FONT, HUD_CYAN, Color.BLACK);
@@ -321,7 +321,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
     private void drawTimeHud(Graphics2D g2, PaoPao player) {
         int w = 270;
         int h = 58;
-        int x = (GameJFrame.GameX - w) / 2;
+        int x = Math.max((GameJFrame.GameX - w) / 2, 422);
         int y = 14;
 
         long seconds = Math.max(0L, GameRuntime.survivalTimeMs / 1000L);
@@ -460,7 +460,7 @@ public class GameMainJPanel extends JPanel implements Runnable {
 
     private String playWeaponCode(PaoPao player) {
         if (player == null) {
-            return "RIFLE";
+            return "步枪";
         }
         return player.getWeaponHudLabel();
     }

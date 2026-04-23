@@ -15,9 +15,9 @@ import java.util.Random;
 import javax.swing.ImageIcon;
 
 public class PlaneEnemy extends ElementObj {
-    private static final String LEFT_BODY_PATH = "image/images/\u98de\u673a/plane_fly0.png";
-    private static final String RIGHT_BODY_PATH = "image/images/\u98de\u673a/plane0.png";
-    // The plane art now includes the propeller and hub directly in the body sprite.
+    private static final String LEFT_BODY_PATH = "image/images/\u98de\u673a/plane_fly0 (2).png";
+    private static final String RIGHT_BODY_PATH = LEFT_BODY_PATH;
+    // The selected plane art is a single left-facing sprite; right-facing flight mirrors it at draw time.
     private static final String LEFT_PROPELLER_PATH = null;
     private static final String RIGHT_PROPELLER_PATH = null;
 
@@ -82,8 +82,14 @@ public class PlaneEnemy extends ElementObj {
         if (frame.icon == null) {
             return;
         }
-        g.drawImage(frame.icon.getImage(), this.getX(), this.getY(),
-                frame.icon.getIconWidth(), frame.icon.getIconHeight(), null);
+        if (faceRight) {
+            g.drawImage(frame.icon.getImage(),
+                    this.getX() + frame.icon.getIconWidth(), this.getY(),
+                    -frame.icon.getIconWidth(), frame.icon.getIconHeight(), null);
+        } else {
+            g.drawImage(frame.icon.getImage(), this.getX(), this.getY(),
+                    frame.icon.getIconWidth(), frame.icon.getIconHeight(), null);
+        }
     }
 
     @Override

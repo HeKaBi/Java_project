@@ -24,7 +24,7 @@ public class PaoPao extends ElementObj {
     private static final int CROUCH_H = 34;
     private static final int MAX_JUMPS = 2;
     private static final int GROUND_LAYER_OVERLAP = 6;
-    private static final int MAX_HP = 30;
+    private static final int MAX_HP = 100;
     private static final int CROUCH_LAYER_OVERLAP = 10;
     private static final long INVINCIBLE_WINDOW = 100;
     private static final int MOVE_FRAME_GAP = 6;
@@ -485,7 +485,7 @@ public class PaoPao extends ElementObj {
     }
 
     public String getWeaponHudLabel() {
-        return currentWeapon.hudLabel;
+        return currentWeapon.label;
     }
 
     public boolean hasWeapon2() {

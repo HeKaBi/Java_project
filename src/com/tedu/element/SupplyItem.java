@@ -84,15 +84,15 @@ public class SupplyItem extends ElementObj {
             player.setWeapon(2);
             player.addGrenades(2);
             AudioPlayer.playOnce(HEAVY_MACHINE_GUN_SFX);
-            GameRuntime.showBanner("HEAVY ARMS ACQUIRED", 1600);
+            GameRuntime.showBanner("获得重机枪补给", 1600);
         } else if ("weapon3".equalsIgnoreCase(itemType) || "weapon4".equalsIgnoreCase(itemType)) {
             player.unlockWeapon(3);
             player.setWeapon(3);
             player.addGrenades(1);
-            GameRuntime.showBanner("ROCKET LAUNCHER ACQUIRED", 1600);
+            GameRuntime.showBanner("获得火箭筒补给", 1600);
         } else {
             player.addGrenades(1);
-            GameRuntime.showBanner("GRENADE RESTOCK", 1200);
+            GameRuntime.showBanner("手雷补充", 1200);
         }
         this.setLive(false);
     }

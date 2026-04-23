@@ -61,17 +61,17 @@ public class GameThread extends Thread {
     private static final int REGULAR_ELITE_CHANCE = 8;
     private static final int HOSTAGE_ELITE_CHANCE = 18;
     private static final StageConfig[] STAGES = {
-        new StageConfig("STAGE 1", STAGE1_MAP_PATH,
+        new StageConfig("第一关", STAGE1_MAP_PATH,
                 1200, 420, 950,
                 90, 4, 35,
                 1, 2, 2, 3,
                 3, 1, 24, "boss1", "weapon2", STAGE12_ENEMY_TYPES, STAGE1_BGM_PATH),
-        new StageConfig("STAGE 2", STAGE2_MAP_PATH,
+        new StageConfig("第二关", STAGE2_MAP_PATH,
                 3600, 1200, 3050,
                 72, 5, 55,
                 2, 3, 3, 4,
                 4, 2, 36, "boss2", "grenade", STAGE12_ENEMY_TYPES, STAGE2_BGM_PATH),
-        new StageConfig("STAGE 3", STAGE3_MAP_PATH,
+        new StageConfig("第三关", STAGE3_MAP_PATH,
                 3200, 1120, 2780,
                 66, 6, 60,
                 3, 4, 4, 5,
@@ -163,7 +163,7 @@ public class GameThread extends Thread {
 
         if (stageIndex == 0) {
             GameRuntime.showBanner(
-                    stage.title + "  |  A/D move  W double jump  Up/E aim up  S x2 drop  Ctrl crouch  Q cycle arms",
+                    stage.title + "  |  A/D移动  W二段跳  上/E上瞄  S连按下落  Ctrl下蹲  Q切换武器",
                     2600);
         } else {
             GameRuntime.showBanner(stage.title, 1800);
@@ -272,21 +272,21 @@ public class GameThread extends Thread {
                     }
                     continue;
                 }
-                GameRuntime.finishTitle = "MISSION FAILED";
+                GameRuntime.finishTitle = "任务失败";
                 GameRuntime.waitingRestart = true;
                 break;
             }
             boolean bossAlive = hasLiveElements(GameElement.BOSS);
             boolean enemyAlive = hasLiveElements(GameElement.ENEMY);
-            if (bossSpawned && !missionResolved && !bossAlive && hostageRescued && !enemyAlive) {
+            if (bossSpawned && !missionResolved && !bossAlive) {
                 missionResolved = true;
                 pendingObjectiveBanner = "";
                 if (hasNextStage()) {
                     playStageTransition(currentStageIndex + 1, gameTime, getPlayer());
                 } else {
                     GameRuntime.missionClear = true;
-                    GameRuntime.finishTitle = "MISSION COMPLETE";
-                    GameRuntime.showBanner("All objectives complete", 1800);
+                    GameRuntime.finishTitle = "任务完成";
+                    GameRuntime.showBanner("全部目标完成", 1800);
                     GameRuntime.waitingRestart = true;
                     break;
                 }
@@ -365,7 +365,7 @@ public class GameThread extends Thread {
             hostage.setY(GameRuntime.getBattlefieldMaxBottomAt(footX) - hostage.getH());
             em.addElement(hostage, GameElement.HOSTAGE);
             spawnHostageGuardPack(stage, hostage);
-            GameRuntime.showBanner("Found a hostage", 1400);
+            GameRuntime.showBanner("发现人质", 1400);
         }
         if (!bossSpawned && GameRuntime.stageDistance >= bossSpawnDistance) {
             bossSpawned = true;
@@ -407,7 +407,7 @@ public class GameThread extends Thread {
             spawnedFlags[i] = true;
             activePlanes++;
             if (i == 0) {
-                GameRuntime.showBanner("Enemy aircraft inbound", 1400);
+                GameRuntime.showBanner("敌机来袭", 1400);
             }
         }
     }
@@ -741,17 +741,17 @@ public class GameThread extends Thread {
     }
 
     private String buildPendingObjectiveMessage(boolean enemyAlive) {
-        StringBuilder message = new StringBuilder("Objectives left: ");
+        StringBuilder message = new StringBuilder("剩余目标：");
         boolean missingAny = false;
         if (!hostageRescued) {
-            message.append("rescue hostage");
+            message.append("解救人质");
             missingAny = true;
         }
         if (enemyAlive) {
             if (missingAny) {
                 message.append(" / ");
             }
-            message.append("clear enemies");
+            message.append("清除敌人");
             missingAny = true;
         }
         return missingAny ? message.toString() : "";
